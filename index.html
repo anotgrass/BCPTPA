@@ -298,19 +298,31 @@
       <section class="card panel workflow-gated" id="step-estimate">
         <h2>Estimate Protest Potential</h2>
         <p class="muted helper-text">
-          Core estimate: land + improvements, optional condition discount, and (if provided) assessed override. Run this
-          after Find Property; notice values are optional.
+          This runs a <strong>rough “what might be supportable” value</strong> from county <strong>land</strong> and
+          <strong>building (improvement)</strong> amounts, then compares it to the <strong>assessed value you’re
+          protesting</strong> to suggest a possible reduction range. Use it <strong>after</strong> you open a property from
+          <strong>Find Property</strong>. Filling in the Notice section above is optional; it only adds context to the
+          write-up, not to this core math.
         </p>
         <label>
-          Estimated Condition Adjustment (%) (0-40)
+          Condition discount on the building (%) — 0 to 40
           <input id="conditionPenalty" type="number" min="0" max="40" value="0" />
         </label>
-        <p class="muted helper-text">Use this if the property has condition issues (repairs, wear, damage).</p>
+        <p class="muted helper-text">
+          Only affects the <strong>improvement (structure) portion</strong> of the model, not land. Increase this if the
+          home has real problems you could argue at a hearing—neglected systems, damage, or heavy wear. <strong>0%</strong> =
+          no extra discount. County data often assumes “average” condition; this nudges the model when yours is below
+          that.
+        </p>
         <label>
-          Use Notice Assessed Value Instead (optional)
+          Assessed value to use in this estimate (optional)
           <input id="assessedOverride" type="number" min="0" placeholder="e.g. 285000" />
         </label>
-        <p class="muted helper-text">Use this when county fetched assessed value is missing or not what your notice shows.</p>
+        <p class="muted helper-text">
+          Leave empty to use the assessed / market total from the county lookup. Fill this in if that number is
+          <strong>missing</strong> in the app or you want the estimate to use the <strong>same total as on your Notice of
+          Appraised Value</strong> (so “possible reduction” matches the value you’re actually protesting).
+        </p>
 
         <details class="collapsible-section">
           <summary class="collapsible-summary">

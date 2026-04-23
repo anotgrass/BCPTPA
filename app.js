@@ -2898,8 +2898,14 @@ async function scoreParcel() {
 }
 
 async function generatePacket() {
-  if (!currentParcel || !currentValuation) {
-    throw new Error("Search and score parcel first");
+  if (!currentParcel) {
+    throw new Error("Search for a parcel first");
+  }
+  if (!currentValuation) {
+    await scoreParcel();
+  }
+  if (!currentValuation) {
+    throw new Error("Could not compute an estimate for the packet. Check condition and value fields, then try again.");
   }
   const ownerName = byId("ownerName").value.trim() || currentParcel.ownerName || "Property Owner";
   const date = new Date().toISOString().slice(0, 10);
