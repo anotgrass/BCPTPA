@@ -54,7 +54,7 @@
         <div class="app-main-menu-footer">
           <div class="app-main-menu-submenu">
             <button id="settingsToggleBtn" class="app-main-menu-link app-main-menu-link-muted" type="button" aria-expanded="false" aria-controls="settingsModal" aria-haspopup="dialog">
-              <span class="menu-link-icon" aria-hidden="true">⚙</span>
+              <span class="menu-link-icon" aria-hidden="true">☰</span>
               <span>Settings</span>
             </button>
             <div class="app-theme-toggle-group" role="group" aria-label="Theme">
@@ -569,6 +569,19 @@
         </header>
         <div class="settings-modal-grid">
           <label class="sidebar-setting-field settings-card-row">
+            <span>Theme</span>
+            <div class="app-theme-toggle-group settings-theme-toggle-group" role="group" aria-label="Theme mode">
+              <button id="modalLightBtn" class="app-theme-toggle-btn" type="button">
+                <span aria-hidden="true">☀</span>
+                <span>Light</span>
+              </button>
+              <button id="modalDarkBtn" class="app-theme-toggle-btn is-active" type="button">
+                <span aria-hidden="true">☾</span>
+                <span>Dark</span>
+              </button>
+            </div>
+          </label>
+          <label class="sidebar-setting-field settings-card-row">
             <span>Text Size</span>
             <select id="uiTextSizeSelect" aria-label="Text size">
               <option value="sm">Small</option>
@@ -591,6 +604,13 @@
           <button id="uiResetStateBtn" class="sidebar-settings-reset" type="button">Reset App State</button>
         </div>
       </section>
+    </div>
+
+    <div id="compAttachUploadBusy" class="comp-attach-upload-busy" hidden aria-live="polite" aria-busy="false">
+      <div class="comp-attach-upload-busy-panel" role="status">
+        <span class="comp-attach-upload-busy-wheel" aria-hidden="true"></span>
+        <span class="comp-attach-upload-busy-label">Saving photos…</span>
+      </div>
     </div>
 
     <div id="compPhotosModal" class="settings-modal" hidden>

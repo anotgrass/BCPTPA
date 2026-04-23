@@ -43,6 +43,8 @@ let workflowUnlocked = false;
 let activeDashboardStepId = "step-market";
 let activeAppPage = "find";
 let pendingCompPhotoTarget = null;
+/** Snapshot of comp sale price maps taken before the file picker opens (DOM often clears after dialog close). */
+let pendingCompPhotoSaleMaps = null;
 let activeCompPhotoViewer = null;
 const COMP_ATTACH_DB = "protest_comp_attachments_v1";
 const COMP_ATTACH_STORE = "counts";
@@ -527,6 +529,13 @@ async function openCompPhotosModal(source, rowKey) {
 
 async function removeSingleCompPhotoAndRefresh(source, rowKey, fileId) {
   if (!currentParcel) return;
+  const frozenN = { ...(currentParcel.compSalePricesNhood || {}) };
+  const frozenC = { ...(currentParcel.compSalePricesCity || {}) };
+  snapshotCompSalePricesFromDom();
+  const saleMaps = {
+    nhood: { ...frozenN, ...(currentParcel.compSalePricesNhood || {}) },
+    city: { ...frozenC, ...(currentParcel.compSalePricesCity || {}) },
+  };
   const parcelKey = getParcelAttachmentKey();
   await removeCompAttachmentFile(parcelKey, source, rowKey, fileId);
   const files = await loadCompAttachmentFiles(parcelKey, source, rowKey).catch((err) => {
@@ -559,17 +568,9 @@ async function removeSingleCompPhotoAndRefresh(source, rowKey, fileId) {
   await saveCompAttachmentCount(parcelKey, source, rowKey, nextCount).catch((err) =>
     warnStorageIssue("saving photo count", err)
   );
-  renderSoldHomes(
-    currentParcel.marketAnalysis && currentParcel.marketAnalysis.neighborhood,
-    currentParcel.neighborhoodSales,
-    (currentParcel.marketAnalysis && currentParcel.marketAnalysis.squareFoot) || currentParcel.sqft
-  );
-  renderCitySoldHomes(
-    currentParcel.city,
-    currentParcel.cityNeighborhoodCodes,
-    currentParcel.citySales,
-    (currentParcel.marketAnalysis && currentParcel.marketAnalysis.squareFoot) || currentParcel.sqft
-  );
+  currentParcel.compSalePricesNhood = saleMaps.nhood;
+  currentParcel.compSalePricesCity = saleMaps.city;
+  refreshCompActionMenusInPlace();
   if (activeCompPhotoViewer && activeCompPhotoViewer.source === source && activeCompPhotoViewer.rowKey === rowKey) {
     if (nextCount > 0) await openCompPhotosModal(source, rowKey);
     else closeCompPhotosModal();
@@ -605,7 +606,7 @@ function bindCompPhotosModalControls() {
   });
 }
 
-function renderCompActionsCell(source, rowKey, districtUrl, googleSearchUrl, forceDropUp = false) {
+function renderCompActionsCell(source, rowKey, districtUrl, googleSearchUrl) {
   const count = getCompPhotoCount(source, rowKey);
   const label = count > 0 ? `Attach photos (${count})` : "Attach photos";
   const names = getCompAttachmentNames(source, rowKey);
@@ -626,7 +627,7 @@ function renderCompActionsCell(source, rowKey, districtUrl, googleSearchUrl, for
           rowKey
         )}">View photos</button>`
       : "";
-  return `<details class="comp-actions-menu${forceDropUp ? " force-drop-up" : ""}">
+  return `<details class="comp-actions-menu">
     <summary>Menu</summary>
     <div class="comp-actions-panel">
       <a
@@ -651,6 +652,36 @@ function renderCompActionsCell(source, rowKey, districtUrl, googleSearchUrl, for
   </details>`;
 }
 
+function refreshCompActionMenusInPlace() {
+  closeCompActionsMenus();
+  cleanupCompActionPanelsOrphanedOnBody();
+  document.querySelectorAll("#soldHomesBody tr[data-nhood-row-key]").forEach((tr) => {
+    const rowKey = tr.getAttribute("data-nhood-row-key");
+    const cell = tr.querySelector(".comp-actions-cell");
+    if (!rowKey || !cell) return;
+    const links = cell.querySelectorAll("a.comp-actions-link");
+    const districtUrl = (links[0] && links[0].getAttribute("href")) || bellcadSearchUrlCurrent();
+    const address = String((tr.querySelector(".address-cell") && tr.querySelector(".address-cell").textContent) || "");
+    const googleSearchUrl =
+      (links[1] && links[1].getAttribute("href")) ||
+      `https://www.google.com/search?q=${encodeURIComponent(`"${address}" TX sold home`)}`;
+    cell.innerHTML = renderCompActionsCell("nhood", rowKey, districtUrl, googleSearchUrl);
+  });
+  document.querySelectorAll("#citySalesBody tr[data-city-row-key]").forEach((tr) => {
+    const rowKey = tr.getAttribute("data-city-row-key");
+    const cell = tr.querySelector(".comp-actions-cell");
+    if (!rowKey || !cell) return;
+    const links = cell.querySelectorAll("a.comp-actions-link");
+    const districtUrl = (links[0] && links[0].getAttribute("href")) || bellcadSearchUrlCurrent();
+    const address = String((tr.querySelector(".address-cell") && tr.querySelector(".address-cell").textContent) || "");
+    const city = String((currentParcel && currentParcel.city) || "").trim();
+    const googleSearchUrl =
+      (links[1] && links[1].getAttribute("href")) ||
+      `https://www.google.com/search?q=${encodeURIComponent(`"${address}" ${city} TX sold home`)}`;
+    cell.innerHTML = renderCompActionsCell("city", rowKey, districtUrl, googleSearchUrl);
+  });
+}
+
 function getActiveLinks() {
   return activeAdapter && activeAdapter.links ? activeAdapter.links : null;
 }
@@ -668,16 +699,18 @@ function applyTheme(themeName) {
     btn.setAttribute("aria-pressed", String(isLight));
     btn.setAttribute("aria-label", isLight ? "Switch to dark mode" : "Switch to light mode");
   }
-  const lightBtn = byId("sidebarLightBtn");
-  const darkBtn = byId("sidebarDarkBtn");
-  if (lightBtn) {
-    lightBtn.classList.toggle("is-active", next === "light");
-    lightBtn.setAttribute("aria-pressed", String(next === "light"));
-  }
-  if (darkBtn) {
-    darkBtn.classList.toggle("is-active", next !== "light");
-    darkBtn.setAttribute("aria-pressed", String(next !== "light"));
-  }
+  ["sidebarLightBtn", "modalLightBtn"].forEach((id) => {
+    const b = byId(id);
+    if (!b) return;
+    b.classList.toggle("is-active", next === "light");
+    b.setAttribute("aria-pressed", String(next === "light"));
+  });
+  ["sidebarDarkBtn", "modalDarkBtn"].forEach((id) => {
+    const b = byId(id);
+    if (!b) return;
+    b.classList.toggle("is-active", next !== "light");
+    b.setAttribute("aria-pressed", String(next !== "light"));
+  });
   syncHeaderOffset();
 }
 
@@ -820,6 +853,21 @@ function setApnSearchLoading(isLoading) {
       el.setAttribute("aria-hidden", "true");
     }
   });
+}
+
+function setCompAttachmentUploadLoading(isLoading) {
+  const el = byId("compAttachUploadBusy");
+  if (!el) return;
+  if (isLoading) {
+    el.removeAttribute("hidden");
+    el.style.display = "grid";
+    void el.offsetHeight;
+    el.setAttribute("aria-busy", "true");
+  } else {
+    el.style.display = "";
+    el.setAttribute("hidden", "");
+    el.setAttribute("aria-busy", "false");
+  }
 }
 
 function initAppSettingsAndAdapter() {
@@ -1004,47 +1052,85 @@ function closeCompActionsMenus(exceptMenu = null) {
   });
 }
 
-function bindCompActionsMenuControls() {
-  const updateMenuDirection = (menu) => {
-    if (!menu) return;
-    if (menu.classList.contains("force-drop-up")) {
-      menu.classList.add("is-drop-up");
-      return;
-    }
-    menu.classList.remove("is-drop-up");
-    const panel = menu.querySelector(".comp-actions-panel");
-    if (!panel) return;
-    const panelHeight = Math.ceil(
-      Math.max(panel.getBoundingClientRect().height || 0, panel.scrollHeight || 0)
-    );
-    const summary = menu.querySelector("summary");
-    const summaryRect = summary ? summary.getBoundingClientRect() : menu.getBoundingClientRect();
-    const scrollFrame = menu.closest(".sold-homes-scroll");
-    let spaceBelow = 0;
-    let spaceAbove = 0;
-    let shouldDropUp = false;
-    if (scrollFrame) {
-      const frameRect = scrollFrame.getBoundingClientRect();
-      spaceBelow = frameRect.bottom - summaryRect.bottom;
-      spaceAbove = summaryRect.top - frameRect.top;
-      const insufficientBelow = spaceBelow < panelHeight + 12;
-      // Prefer opening upward if the scroll frame cannot fit the menu below.
-      shouldDropUp =
-        insufficientBelow &&
-        (spaceAbove >= panelHeight + 8 ||
-          spaceAbove > spaceBelow ||
-          summaryRect.top > frameRect.top + frameRect.height * 0.55);
-    } else {
-      const viewportBottom = window.innerHeight || document.documentElement.clientHeight || 0;
-      spaceBelow = viewportBottom - summaryRect.bottom;
-      spaceAbove = summaryRect.top;
-      shouldDropUp = spaceBelow < panelHeight + 12 && spaceAbove > spaceBelow;
-    }
-    if (shouldDropUp) {
-      menu.classList.add("is-drop-up");
-    }
-  };
+/** Panels moved to document.body while open; strip strays if table DOM is replaced without closing. */
+function cleanupCompActionPanelsOrphanedOnBody() {
+  document.querySelectorAll("body > .comp-actions-panel").forEach((el) => el.remove());
+}
 
+function teardownCompActionsMenusForTableRewrite() {
+  closeCompActionsMenus();
+  cleanupCompActionPanelsOrphanedOnBody();
+}
+
+function resetFloatingCompActionsPanel(menu) {
+  if (!menu) return;
+  const panel = menu.__compPanelNode || menu.querySelector(".comp-actions-panel");
+  if (!panel) return;
+  if (panel.parentNode !== menu) {
+    menu.appendChild(panel);
+  }
+  delete menu.__compPanelNode;
+  panel.classList.remove("comp-actions-panel--popout");
+  panel.style.position = "";
+  panel.style.left = "";
+  panel.style.top = "";
+  panel.style.right = "";
+  panel.style.bottom = "";
+  panel.style.zIndex = "";
+  panel.style.margin = "";
+}
+
+/**
+ * Pop-out menu: reparent the panel to document.body while open and position with fixed coords.
+ * Fixed positioning inside <table>/<details> is not reliable — the row can still grow; body
+ * removes the panel from table layout entirely.
+ */
+function positionFloatingCompActionsPanel(menu) {
+  if (!menu || !menu.matches(".comp-actions-menu") || !menu.hasAttribute("open")) return;
+  let panel = menu.querySelector(".comp-actions-panel") || menu.__compPanelNode;
+  const summary = menu.querySelector("summary");
+  if (!panel || !summary) return;
+
+  /* Fixed + off-screen before reparent so the <tr> never reserves height for the panel. */
+  panel.classList.add("comp-actions-panel--popout");
+  panel.style.position = "fixed";
+  panel.style.right = "auto";
+  panel.style.margin = "0";
+  panel.style.zIndex = "400000";
+  panel.style.left = "-10000px";
+  panel.style.top = "0px";
+  void panel.offsetHeight;
+
+  if (panel.parentNode !== document.body) {
+    menu.__compPanelNode = panel;
+    document.body.appendChild(panel);
+  }
+  void panel.offsetHeight;
+
+  const sr = summary.getBoundingClientRect();
+  const margin = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const pr = panel.getBoundingClientRect();
+  const pw = Math.ceil(pr.width) || 200;
+  const ph = Math.ceil(pr.height) || 160;
+
+  let left = sr.right - pw;
+  left = Math.max(margin, Math.min(left, vw - pw - margin));
+
+  const spaceBelow = vh - sr.bottom - margin;
+  const spaceAbove = sr.top - margin;
+  const preferBelow = spaceBelow >= ph + margin || spaceBelow >= spaceAbove;
+  let top = preferBelow ? sr.bottom + margin : sr.top - ph - margin;
+  if (top + ph > vh - margin) top = vh - ph - margin;
+  if (top < margin) top = margin;
+
+  panel.style.left = `${Math.round(left)}px`;
+  panel.style.top = `${Math.round(top)}px`;
+}
+
+function bindCompActionsMenuControls() {
   document.addEventListener("click", (event) => {
     const summary = event.target.closest(".comp-actions-menu > summary");
     if (!summary) return;
@@ -1057,13 +1143,18 @@ function bindCompActionsMenuControls() {
     const menu = event.target;
     if (!menu || !menu.matches || !menu.matches(".comp-actions-menu")) return;
     if (menu.hasAttribute("open")) {
-      updateMenuDirection(menu);
       closeCompActionsMenus(menu);
+      positionFloatingCompActionsPanel(menu);
+      window.requestAnimationFrame(() => positionFloatingCompActionsPanel(menu));
+    } else {
+      resetFloatingCompActionsPanel(menu);
     }
-  });
+  }, true);
 
   document.addEventListener("click", (event) => {
-    if (!event.target.closest(".comp-actions-menu")) {
+    const inMenu = event.target.closest(".comp-actions-menu");
+    const inPopoutPanel = event.target.closest(".comp-actions-panel--popout");
+    if (!inMenu && !inPopoutPanel) {
       closeCompActionsMenus();
       return;
     }
@@ -1083,6 +1174,13 @@ function bindCompActionsMenuControls() {
     el.addEventListener("scroll", closeOnScroll, { passive: true });
   });
   window.addEventListener("scroll", closeOnScroll, { passive: true, capture: true });
+  window.addEventListener(
+    "resize",
+    () => {
+      document.querySelectorAll(".comp-actions-menu[open]").forEach((m) => positionFloatingCompActionsPanel(m));
+    },
+    { passive: true }
+  );
 }
 
 function openSettingsModal() {
@@ -1106,6 +1204,8 @@ function bindSettingsControls() {
   const themeBtn = byId("themeToggleBtn");
   const lightBtn = byId("sidebarLightBtn");
   const darkBtn = byId("sidebarDarkBtn");
+  const modalLightBtn = byId("modalLightBtn");
+  const modalDarkBtn = byId("modalDarkBtn");
   const settingsToggleBtn = byId("settingsToggleBtn");
   const settingsModal = byId("settingsModal");
   const settingsModalBackdrop = byId("settingsModalBackdrop");
@@ -1143,6 +1243,12 @@ function bindSettingsControls() {
   }
   if (darkBtn) {
     darkBtn.addEventListener("click", () => applyTheme("dark"));
+  }
+  if (modalLightBtn) {
+    modalLightBtn.addEventListener("click", () => applyTheme("light"));
+  }
+  if (modalDarkBtn) {
+    modalDarkBtn.addEventListener("click", () => applyTheme("dark"));
   }
   if (settingsToggleBtn && settingsModal) {
     settingsToggleBtn.addEventListener("click", openSettingsModal);
@@ -1600,6 +1706,25 @@ function snapshotCompSalePricesFromDom() {
   });
 }
 
+/** Only writes positive prices from inputs — never deletes keys (safe when DOM is empty after a file dialog). */
+function overlayPositiveCompSalePricesFromDom(nhoodMap, cityMap) {
+  if (!nhoodMap || !cityMap) return;
+  document.querySelectorAll("#soldHomesBody tr[data-nhood-row-key]").forEach((tr) => {
+    const key = tr.getAttribute("data-nhood-row-key");
+    const inp = tr.querySelector(".sold-price-input");
+    if (!key || !inp) return;
+    const v = num(inp.value);
+    if (v > 0) nhoodMap[key] = v;
+  });
+  document.querySelectorAll("#citySalesBody tr[data-city-row-key]").forEach((tr) => {
+    const key = tr.getAttribute("data-city-row-key");
+    const inp = tr.querySelector(".sold-price-input");
+    if (!key || !inp) return;
+    const v = num(inp.value);
+    if (v > 0) cityMap[key] = v;
+  });
+}
+
 function initCompSalePriceControls() {
   const root = byId("step-comps");
   if (!root || root.dataset.compPriceBound) return;
@@ -1625,12 +1750,20 @@ function initCompSalePriceControls() {
       snapshotCompSalePricesFromDom();
     }
   });
-  root.addEventListener("click", (e) => {
+  document.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-comp-attach-btn]");
     const removeBtn = e.target.closest("[data-comp-remove-btn]");
     const viewBtn = e.target.closest("[data-comp-view-btn]");
     const removeOneBtn = e.target.closest("[data-comp-remove-one-btn]");
     if (!btn && !removeBtn && !viewBtn && !removeOneBtn) return;
+    const hit = btn || removeBtn || viewBtn || removeOneBtn;
+    if (
+      !hit.closest("#step-comps") &&
+      !hit.closest(".comp-actions-panel") &&
+      !hit.closest("#compPhotosModalBody")
+    ) {
+      return;
+    }
     e.preventDefault();
     const source = (btn || removeBtn || viewBtn || removeOneBtn).getAttribute("data-comp-photo-source");
     const rowKey = (btn || removeBtn || viewBtn || removeOneBtn).getAttribute("data-comp-row-key");
@@ -1672,21 +1805,19 @@ function initCompSalePriceControls() {
       if (activeCompPhotoViewer && activeCompPhotoViewer.source === source && activeCompPhotoViewer.rowKey === rowKey) {
         closeCompPhotosModal();
       }
-      renderSoldHomes(
-        currentParcel.marketAnalysis && currentParcel.marketAnalysis.neighborhood,
-        currentParcel.neighborhoodSales,
-        (currentParcel.marketAnalysis && currentParcel.marketAnalysis.squareFoot) || currentParcel.sqft
-      );
-      renderCitySoldHomes(
-        currentParcel.city,
-        currentParcel.cityNeighborhoodCodes,
-        currentParcel.citySales,
-        (currentParcel.marketAnalysis && currentParcel.marketAnalysis.squareFoot) || currentParcel.sqft
-      );
+      refreshCompActionMenusInPlace();
       return;
     }
 
     pendingCompPhotoTarget = { source, rowKey };
+    /* Non-destructive read from inputs into maps (no snapshot — file dialog can blank inputs). */
+    currentParcel.compSalePricesNhood = currentParcel.compSalePricesNhood || {};
+    currentParcel.compSalePricesCity = currentParcel.compSalePricesCity || {};
+    overlayPositiveCompSalePricesFromDom(currentParcel.compSalePricesNhood, currentParcel.compSalePricesCity);
+    pendingCompPhotoSaleMaps = {
+      nhood: { ...(currentParcel.compSalePricesNhood || {}) },
+      city: { ...(currentParcel.compSalePricesCity || {}) },
+    };
     let picker = byId("compPhotoPicker");
     if (!picker) {
       picker = document.createElement("input");
@@ -1696,56 +1827,82 @@ function initCompSalePriceControls() {
       picker.multiple = true;
       picker.hidden = true;
       picker.addEventListener("change", async () => {
-        if (!pendingCompPhotoTarget || !currentParcel) return;
+        if (!pendingCompPhotoTarget || !currentParcel) {
+          pendingCompPhotoSaleMaps = null;
+          return;
+        }
         const selectedFiles = picker.files ? Array.from(picker.files) : [];
-        const files = selectedFiles.length;
-        if (files > 0) {
-          if (pendingCompPhotoTarget.source === "city") {
-            currentParcel.compPhotoCountsCity = currentParcel.compPhotoCountsCity || {};
-            currentParcel.compPhotoCountsCity[pendingCompPhotoTarget.rowKey] = files;
-            currentParcel.compPhotoNamesCity = currentParcel.compPhotoNamesCity || {};
-            currentParcel.compPhotoNamesCity[pendingCompPhotoTarget.rowKey] = selectedFiles.map(
-              (file) => file.name
-            );
-          } else {
-            currentParcel.compPhotoCountsNhood = currentParcel.compPhotoCountsNhood || {};
-            currentParcel.compPhotoCountsNhood[pendingCompPhotoTarget.rowKey] = files;
-            currentParcel.compPhotoNamesNhood = currentParcel.compPhotoNamesNhood || {};
-            currentParcel.compPhotoNamesNhood[pendingCompPhotoTarget.rowKey] = selectedFiles.map(
-              (file) => file.name
-            );
-          }
+        if (selectedFiles.length > 0) {
+          setCompAttachmentUploadLoading(true);
+          const uploadStartedAt = Date.now();
           try {
+            await new Promise((r) => setTimeout(r, 0));
             const parcelAttachmentKey = getParcelAttachmentKey();
+            const existingItems = await loadCompAttachmentFiles(
+              parcelAttachmentKey,
+              pendingCompPhotoTarget.source,
+              pendingCompPhotoTarget.rowKey
+            ).catch(() => []);
+            const existingFiles = existingItems
+              .map((item) => item && item.blob)
+              .filter((blob) => !!blob);
+            const mergedFiles = [...existingFiles, ...selectedFiles];
+            const totalFiles = mergedFiles.length;
+            const saleMaps = {
+              nhood: {
+                ...(currentParcel.compSalePricesNhood || {}),
+                ...((pendingCompPhotoSaleMaps && pendingCompPhotoSaleMaps.nhood) || {}),
+              },
+              city: {
+                ...(currentParcel.compSalePricesCity || {}),
+                ...((pendingCompPhotoSaleMaps && pendingCompPhotoSaleMaps.city) || {}),
+              },
+            };
+            overlayPositiveCompSalePricesFromDom(saleMaps.nhood, saleMaps.city);
+            if (pendingCompPhotoTarget.source === "city") {
+              currentParcel.compPhotoCountsCity = currentParcel.compPhotoCountsCity || {};
+              currentParcel.compPhotoCountsCity[pendingCompPhotoTarget.rowKey] = totalFiles;
+              currentParcel.compPhotoNamesCity = currentParcel.compPhotoNamesCity || {};
+              currentParcel.compPhotoNamesCity[pendingCompPhotoTarget.rowKey] = mergedFiles.map(
+                (file) => file.name
+              );
+            } else {
+              currentParcel.compPhotoCountsNhood = currentParcel.compPhotoCountsNhood || {};
+              currentParcel.compPhotoCountsNhood[pendingCompPhotoTarget.rowKey] = totalFiles;
+              currentParcel.compPhotoNamesNhood = currentParcel.compPhotoNamesNhood || {};
+              currentParcel.compPhotoNamesNhood[pendingCompPhotoTarget.rowKey] = mergedFiles.map(
+                (file) => file.name
+              );
+            }
             await saveCompAttachmentCount(
               parcelAttachmentKey,
               pendingCompPhotoTarget.source,
               pendingCompPhotoTarget.rowKey,
-              files
+              totalFiles
             );
             await saveCompAttachmentFiles(
               parcelAttachmentKey,
               pendingCompPhotoTarget.source,
               pendingCompPhotoTarget.rowKey,
-              selectedFiles
+              mergedFiles
             );
+            currentParcel.compSalePricesNhood = saleMaps.nhood;
+            currentParcel.compSalePricesCity = saleMaps.city;
+            refreshCompActionMenusInPlace();
           } catch (err) {
             warnStorageIssue("saving selected photos", err);
+          } finally {
+            const minVisibleMs = 650;
+            const elapsed = Date.now() - uploadStartedAt;
+            if (elapsed < minVisibleMs) {
+              await new Promise((r) => setTimeout(r, minVisibleMs - elapsed));
+            }
+            setCompAttachmentUploadLoading(false);
           }
-          renderSoldHomes(
-            currentParcel.marketAnalysis && currentParcel.marketAnalysis.neighborhood,
-            currentParcel.neighborhoodSales,
-            (currentParcel.marketAnalysis && currentParcel.marketAnalysis.squareFoot) || currentParcel.sqft
-          );
-          renderCitySoldHomes(
-            currentParcel.city,
-            currentParcel.cityNeighborhoodCodes,
-            currentParcel.citySales,
-            (currentParcel.marketAnalysis && currentParcel.marketAnalysis.squareFoot) || currentParcel.sqft
-          );
         }
         picker.value = "";
         pendingCompPhotoTarget = null;
+        pendingCompPhotoSaleMaps = null;
       });
       document.body.appendChild(picker);
     }
@@ -1855,15 +2012,19 @@ function renderMarketAnalysisCard(market) {
  * @param {string|number|null|undefined} neighborhood
  * @param {CompSaleRow[]|null|undefined} rows
  * @param {string|number|null|undefined} subjectSqft
+ * @param {{ skipSalePriceSnapshot?: boolean }} [opts]
  */
-function renderSoldHomes(neighborhood, rows, subjectSqft) {
-  snapshotCompSalePricesFromDom();
+function renderSoldHomes(neighborhood, rows, subjectSqft, opts) {
+  if (!opts || !opts.skipSalePriceSnapshot) {
+    snapshotCompSalePricesFromDom();
+  }
   const card = byId("soldHomesCard");
   const header = byId("soldHomesHeader");
   const tbody = byId("soldHomesBody");
   if (!rows || rows.length === 0) {
     card.hidden = true;
     header.textContent = "";
+    teardownCompActionsMenusForTableRewrite();
     tbody.innerHTML = "";
     setStatus("compSheetStatus", "");
     return;
@@ -1874,6 +2035,7 @@ function renderSoldHomes(neighborhood, rows, subjectSqft) {
   const areaMap = currentParcel && currentParcel.neighborhoodMarketAreaByCode;
   const hoodLabel = neighborhoodDisplayName(neighborhood, areaMap);
   header.textContent = `${rows.length} recent sale record(s) in neighborhood: ${hoodLabel}`;
+  teardownCompActionsMenusForTableRewrite();
   tbody.innerHTML = rows
     .map((row, idx) => {
       const propId = row.propertyId || "n/a";
@@ -1892,7 +2054,6 @@ function renderSoldHomes(neighborhood, rows, subjectSqft) {
         : bellcadSearchUrlCurrent();
       const realEstateQuery = encodeURIComponent(`"${address}" TX sold home`);
       const googleSearchUrl = `https://www.google.com/search?q=${realEstateQuery}`;
-      const forceDropUp = idx >= Math.max(0, rows.length - 4);
       return `<tr data-nhood-row-key="${escapeHtml(compKey)}">
         <td><input type="checkbox" data-nhood-comp-select value="${escapeHtml(compKey)}" ${checkedAttr} /></td>
         <td class="nbhd-market-cell" title="${titleCode}">${escapeHtml(String(neighborhoodLabel))}</td>
@@ -1906,8 +2067,7 @@ function renderSoldHomes(neighborhood, rows, subjectSqft) {
           "nhood",
           compKey,
           bellcadUrl,
-          googleSearchUrl,
-          forceDropUp
+          googleSearchUrl
         )}</td>
       </tr>`;
     })
@@ -2014,13 +2174,16 @@ function buildCitySalesRows(rows, subjectSqft, variancePct, sortMode, limit = 15
  * @param {string[]|null|undefined} neighborhoodCodes
  * @param {CompSaleRow[]|null|undefined} rows
  * @param {string|number|null|undefined} subjectSqft
+ * @param {{ skipSalePriceSnapshot?: boolean }} [opts]
  */
-function renderCitySoldHomes(city, neighborhoodCodes, rows, subjectSqft) {
+function renderCitySoldHomes(city, neighborhoodCodes, rows, subjectSqft, opts) {
   const details = byId("citySalesDetails");
   const header = byId("citySalesHeader");
   const tbody = byId("citySalesBody");
   if (!details || !header || !tbody) return;
-  snapshotCompSalePricesFromDom();
+  if (!opts || !opts.skipSalePriceSnapshot) {
+    snapshotCompSalePricesFromDom();
+  }
   if (currentParcel) {
     currentParcel.citySalesDisplayRows = [];
   }
@@ -2054,6 +2217,7 @@ function renderCitySoldHomes(city, neighborhoodCodes, rows, subjectSqft) {
     header.textContent = city
       ? `No city-wide sold homes found for ${city} within +/- ${variancePct}% square-foot variance.`
       : "No city-wide sold homes found because city was missing on the parcel record.";
+    teardownCompActionsMenusForTableRewrite();
     tbody.innerHTML = "";
     return;
   }
@@ -2075,6 +2239,7 @@ function renderCitySoldHomes(city, neighborhoodCodes, rows, subjectSqft) {
   } else {
     header.textContent = `${rankedRows.length} shown (max 150) · ${codeCount} hoods · subject ${subjectSqftText} sq ft · ±${variancePct}%`;
   }
+  teardownCompActionsMenusForTableRewrite();
   tbody.innerHTML = rankedRows
     .map((row, idx) => {
       const propId = row.propertyId || "n/a";
@@ -2091,7 +2256,6 @@ function renderCitySoldHomes(city, neighborhoodCodes, rows, subjectSqft) {
       const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(
         `"${address}" ${city} TX sold home`
       )}`;
-      const forceDropUp = idx >= Math.max(0, rankedRows.length - 4);
       const titleCode = neighborhoodLabel ? escapeHtml(String(neighborhoodLabel)) : "";
       return `<tr data-city-row-key="${escapeHtml(cityRowKey)}">
         <td><input type="checkbox" data-city-comp-select data-city-idx="${idx}" /></td>
@@ -2106,8 +2270,7 @@ function renderCitySoldHomes(city, neighborhoodCodes, rows, subjectSqft) {
           "city",
           cityRowKey,
           bellcadUrl,
-          googleSearchUrl,
-          forceDropUp
+          googleSearchUrl
         )}</td>
       </tr>`;
     })
@@ -2128,7 +2291,47 @@ function sqftIndicatorPlain(rowSqftRaw, subjectSqftRaw) {
   return delta ? `${arrow} ${delta}` : arrow;
 }
 
-function printCompSheet() {
+async function blobToDataUrl(blob) {
+  if (!blob) return "";
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Failed to read image data."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function buildPrintPhotoCellHtml(source, rowKey) {
+  if (!currentParcel || !source || !rowKey) return "—";
+  const parcelKey = getParcelAttachmentKey();
+  const files = await loadCompAttachmentFiles(parcelKey, source, rowKey).catch((err) => {
+    warnStorageIssue("loading photos for comp sheet", err);
+    return [];
+  });
+  if (!files.length) return "—";
+
+  const maxPreview = 4;
+  const preview = [];
+  for (let i = 0; i < files.length && preview.length < maxPreview; i += 1) {
+    const item = files[i];
+    const fileName = escapeHtml(String(item && item.name ? item.name : "image"));
+    const fileType = String((item && item.type) || "");
+    const isImage = fileType.startsWith("image/") && item && item.blob;
+    if (isImage) {
+      const src = await blobToDataUrl(item.blob).catch(() => "");
+      if (src) {
+        preview.push(`<figure class="print-photo-item"><img src="${src}" alt="${fileName}" /></figure>`);
+        continue;
+      }
+    }
+    preview.push(`<div class="print-photo-file">Attachment file</div>`);
+  }
+  const extraCount = files.length - preview.length;
+  const extra = extraCount > 0 ? `<div class="print-photo-more">+${extraCount} more file(s)</div>` : "";
+  return `<div class="print-photo-cell">${preview.join("")}${extra}</div>`;
+}
+
+async function printCompSheet() {
   if (!currentParcel) {
     throw new Error("Search for a property first.");
   }
@@ -2202,6 +2405,15 @@ function printCompSheet() {
     (currentParcel.marketAnalysis && currentParcel.marketAnalysis.neighborhoodMarketArea) || "";
   const cityLabel = currentParcel.city || "n/a";
 
+  const allRows = [...nhoodRows, ...cityRows];
+  const photoHtmlByRowKey = {};
+  await Promise.all(
+    allRows.map(async (row) => {
+      const cacheKey = `${row.compPhotoSource}|${row.compPhotoRowKey}`;
+      photoHtmlByRowKey[cacheKey] = await buildPrintPhotoCellHtml(row.compPhotoSource, row.compPhotoRowKey);
+    })
+  );
+
   const buildRowHtml = (row) => {
     const propId = row.propertyId || "n/a";
     const address = row.propertyAddress || "Address not available";
@@ -2223,12 +2435,7 @@ function printCompSheet() {
       `"${address}" TX sold home`
     )}`;
     const salePriceDisp = num(row.salePrice) > 0 ? formatCurrency(row.salePrice) : "—";
-    const photoCount = getCompPhotoCount(row.compPhotoSource, row.compPhotoRowKey);
-    const photoNames = getCompAttachmentNames(row.compPhotoSource, row.compPhotoRowKey);
-    const photoSummary =
-      photoCount > 0
-        ? `${photoCount} file(s)${photoNames.length ? `: ${photoNames.join(", ")}` : ""}`
-        : "—";
+    const photoSummary = photoHtmlByRowKey[`${row.compPhotoSource}|${row.compPhotoRowKey}`] || "—";
     return `<tr>
         <td>${escapeHtml(String(propId))}</td>
         <td>${escapeHtml(String(areaLabel))}</td>
@@ -2237,13 +2444,13 @@ function printCompSheet() {
         <td>${escapeHtml(sqftDisplay)}</td>
         <td>${escapeHtml(String(saleDate))}</td>
         <td>${escapeHtml(salePriceDisp)}</td>
-        <td>${escapeHtml(photoSummary)}</td>
+        <td>${photoSummary}</td>
         <td><a href="${bellcadUrl}" target="_blank" rel="noopener noreferrer">District</a></td>
         <td><a href="${googleSearchUrl}" target="_blank" rel="noopener noreferrer">Google</a></td>
       </tr>`;
   };
 
-  const allPrintRows = [...nhoodRows, ...cityRows].map(buildRowHtml).join("");
+  const allPrintRows = allRows.map(buildRowHtml).join("");
   const total = nhoodRows.length + cityRows.length;
 
   const html = `<!doctype html>
@@ -2259,8 +2466,15 @@ function printCompSheet() {
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
       th, td { border: 1px solid #cbd5e1; padding: 6px; text-align: left; vertical-align: top; }
       th { background: #f1f5f9; }
+      tbody tr:nth-child(odd) { background: #ffffff; }
+      tbody tr:nth-child(even) { background: #e2e8f0; }
       a { color: #0f766e; text-decoration: none; }
       .small { font-size: 11px; color: #475569; margin-top: 8px; }
+      .print-photo-cell { display: grid; gap: 10px; min-width: 840px; }
+      .print-photo-item { margin: 0; display: grid; gap: 2px; }
+      .print-photo-item img { width: 800px; height: 520px; object-fit: cover; border: 1px solid #cbd5e1; border-radius: 2px; }
+      .print-photo-file { font-size: 10px; color: #334155; word-break: break-word; }
+      .print-photo-more { font-size: 10px; color: #64748b; font-style: italic; }
       @media print { body { margin: 10mm; } a { color: #111827; } }
     </style>
   </head>
