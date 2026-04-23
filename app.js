@@ -834,7 +834,7 @@ async function renderSourceHealth() {
     el.className = "site-nav-health site-nav-health-ok";
     const summary =
       health.mode === "geojson"
-        ? `GeoJSON ready • ${fmtCheckedAt(health.checkedAt)}`
+        ? `Local snapshot (admin) • ${fmtCheckedAt(health.checkedAt)}`
         : `Live services up • ${fmtCheckedAt(health.checkedAt)}`;
     el.innerHTML = `
       <button type="button" class="source-health-chip source-health-chip-ok" aria-label="Source status healthy">
@@ -848,7 +848,7 @@ async function renderSourceHealth() {
     syncHeaderOffset();
     return;
   }
-  const errSummary = `${health && health.mode === "live" ? "Live services issue" : "GeoJSON issue"} • ${
+  const errSummary = `${health && health.mode === "live" ? "Live services issue" : "Local snapshot issue"} • ${
     fmtCheckedAt(health && health.checkedAt)
   }`;
   el.className = "site-nav-health site-nav-health-error";
@@ -866,7 +866,6 @@ async function renderSourceHealth() {
 
 function syncSettingsControls() {
   const countySel = byId("countySelect");
-  const sourceSel = byId("dataSourceSelect");
   const svc = window.ProtestSettings;
   if (!svc) return;
   if (countySel) {
@@ -874,9 +873,6 @@ function syncSettingsControls() {
       .map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)}</option>`)
       .join("");
     countySel.value = appSettings.countyId;
-  }
-  if (sourceSel) {
-    sourceSel.value = appSettings.dataSource;
   }
   const countyMeta = svc.countyRegistry[appSettings.countyId] || null;
   const districtLink = byId("lookupDistrictLink");
@@ -917,7 +913,7 @@ function clearWorksheetInputs() {
   if (!root) return;
   root.querySelectorAll("input, textarea").forEach((field) => {
     if (!field || !field.id) return;
-    if (field.id === "countySelect" || field.id === "dataSourceSelect") return;
+    if (field.id === "countySelect") return;
     if (field.type === "checkbox" || field.type === "radio") {
       field.checked = false;
       return;
@@ -1079,7 +1075,6 @@ function closeSettingsModal() {
 
 function bindSettingsControls() {
   const countySel = byId("countySelect");
-  const sourceSel = byId("dataSourceSelect");
   const themeBtn = byId("themeToggleBtn");
   const lightBtn = byId("sidebarLightBtn");
   const darkBtn = byId("sidebarDarkBtn");
@@ -1102,16 +1097,15 @@ function bindSettingsControls() {
     resetWorkspaceForSourceChange();
     setStatus(
       "packetStatus",
-      `Using ${appSettings.dataSource === "live" ? "live services" : "GeoJSON snapshots"} for the selected Tax Appraisal District.`
+      appSettings.dataSource === "geojson"
+        ? "Local GeoJSON snapshot (admin preview) — not used in production."
+        : "Using live public services for the selected Tax Appraisal District."
     );
     renderSourceHealth();
   }
 
   if (countySel) {
     countySel.addEventListener("change", () => applyNext({ countyId: countySel.value }));
-  }
-  if (sourceSel) {
-    sourceSel.addEventListener("change", () => applyNext({ dataSource: sourceSel.value }));
   }
   if (themeBtn) {
     themeBtn.addEventListener("click", () => applyTheme(currentTheme === "light" ? "dark" : "light"));

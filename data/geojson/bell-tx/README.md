@@ -1,8 +1,23 @@
 # Bell County GeoJSON Snapshot Contract
 
-This directory holds the canonical offline snapshot files consumed by
-GeoJSON mode. Snapshots are taken **once per year** and live in a
-`YYYY/` subfolder so history is preserved without file duplication.
+This directory holds offline snapshot files produced for **local admin
+preview** (the public site uses live ArcGIS services only). Snapshots are
+taken **once per year** and live in a `YYYY/` subfolder so history is
+preserved without file duplication.
+
+**Git:** `*.geojson`, `manifest.json`, and `README.md` under `data/geojson/`
+are gitignored so snapshot exports stay local. Only `schema.json` (and
+similar small contract files) is meant to be committed.
+
+## Admin preview in the browser
+
+Serve the repo over HTTP, then open the app with:
+
+`http://127.0.0.1:8000/?adminGeojson=1`
+
+This enables the GeoJSON adapter for the current session only; it is
+**not** exposed in the UI. Requires `manifest.json` and the
+`YYYY/*.geojson` files from the downloader.
 
 ## Layout
 
@@ -36,9 +51,8 @@ Each file must be a valid GeoJSON `FeatureCollection`.
 ## manifest.json
 
 `manifest.json` is rewritten by `scripts/download_arcgis_geojson.py`
-every run. The app (`data/adapters.js` → `createGeoJsonSource`) reads
-it to decide which year folder to load from, so the newest snapshots
-are served automatically.
+every run. When `?adminGeojson=1` is used, the app (`data/adapters.js` →
+`createGeoJsonSource`) reads it to decide which year folder to load from.
 
 ```json
 {

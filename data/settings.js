@@ -7,8 +7,10 @@
       label: "Bell County, TX",
       districtLabel: "Bell County Appraisal District",
       districtUrl: "https://bellcad.org/",
-      supports: ["live", "geojson"],
+      /** Only "live" is user-facing; `adminGeojson` enables `?adminGeojson=1` for local snapshot preview. */
+      supports: ["live"],
       defaultSource: "live",
+      adminGeojson: true,
     },
   };
 
@@ -19,7 +21,11 @@
     };
   }
 
-  function readSettings() {
+  /**
+   * Settings as stored in localStorage (no admin URL override).
+   * @returns {{ countyId: string, dataSource: string }}
+   */
+  function readStorageSettings() {
     const defaults = getDefaultSettings();
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -28,7 +34,8 @@
       const countyId = countyRegistry[parsed.countyId] ? parsed.countyId : defaults.countyId;
       const source = String(parsed.dataSource || defaults.dataSource);
       const allowed = countyRegistry[countyId].supports;
-      const dataSource = allowed.includes(source) ? source : defaults.dataSource;
+      const def = countyRegistry[countyId].defaultSource;
+      const dataSource = allowed.includes(source) ? source : def;
       return { countyId, dataSource };
     } catch (err) {
       console.warn("Ignoring invalid app settings in localStorage.", err);
@@ -36,14 +43,46 @@
     }
   }
 
+  function isAdminGeojsonRequest(countyId) {
+    try {
+      if (new URLSearchParams(window.location.search).get("adminGeojson") !== "1") return false;
+      return !!(countyRegistry[countyId] && countyRegistry[countyId].adminGeojson === true);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function readSettings() {
+    const base = readStorageSettings();
+    if (isAdminGeojsonRequest(base.countyId)) {
+      return { countyId: base.countyId, dataSource: "geojson" };
+    }
+    return base;
+  }
+
   function writeSettings(next) {
-    const settings = readSettings();
-    const countyId = countyRegistry[next.countyId] ? next.countyId : settings.countyId;
-    const source = String(next.dataSource || settings.dataSource);
+    const persisted = readStorageSettings();
+    const countyId = countyRegistry[next.countyId] ? next.countyId : persisted.countyId;
     const allowed = countyRegistry[countyId].supports;
-    const dataSource = allowed.includes(source) ? source : settings.dataSource;
+    const defaultSource = countyRegistry[countyId].defaultSource;
+
+    let dataSource;
+    if (Object.prototype.hasOwnProperty.call(next, "dataSource")) {
+      const candidate = String(next.dataSource);
+      dataSource = allowed.includes(candidate) ? candidate : defaultSource;
+    } else if (persisted.countyId === countyId) {
+      dataSource = persisted.dataSource;
+    } else {
+      dataSource = defaultSource;
+    }
+    if (!allowed.includes(dataSource)) {
+      dataSource = defaultSource;
+    }
     const merged = { countyId, dataSource };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    if (isAdminGeojsonRequest(countyId)) {
+      return { countyId, dataSource: "geojson" };
+    }
     return merged;
   }
 
@@ -51,6 +90,7 @@
     countyRegistry,
     getDefaultSettings,
     readSettings,
+    readStorageSettings,
     writeSettings,
   };
 })();

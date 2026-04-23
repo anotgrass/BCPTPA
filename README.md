@@ -4,7 +4,7 @@ Automation-focused property tax protest helper for a single county (v1: Bell Cou
 
 ## Architecture
 
-Static site at the repository root: `index.html`, `styles.css`, `app.js`, and `data/` (settings, county adapters, optional GeoJSON snapshots). No backend is required for Bell public data mode.
+Static site at the repository root: `index.html`, `styles.css`, `app.js`, and `data/` (settings, county adapters, optional local GeoJSON exports for admin preview). The published app uses **live** ArcGIS services only. To preview downloaded snapshots over `http://localhost`, open `?adminGeojson=1` (requires local `data/geojson/` files; snapshot exports are gitignored and not on GitHub). No backend is required for Bell public data mode.
 
 The app runs entirely in the browser: it queries BellCAD public ArcGIS endpoints and computes valuation in-browser.
 
@@ -29,7 +29,7 @@ Primary data endpoint:
 
 ## Local Development
 
-No build step is required. Open `index.html` in a browser from the repo root, or serve the repository root locally.
+No build step is required. Serve the repository root over HTTP (e.g. `python -m http.server 8000 --bind 127.0.0.1`); the app can load all resources correctly that way. Opening `index.html` as a `file://` URL is limited: live ArcGIS mode usually works, but fetches to local `data/` files (including admin snapshot preview) require HTTP.
 
 ## Deploy (Free Stack)
 
