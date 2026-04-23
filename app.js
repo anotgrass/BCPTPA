@@ -174,7 +174,7 @@ const COMP_ATTACH_FILE_STORE = "files";
 
 /**
  * @typedef {Object} SelectedCompPriceRow
- * @property {"Neighborhood"|"Same city"} source
+ * @property {"Neighborhood"|"Surrounding areas"} source
  * @property {string} propertyId
  * @property {number} salePrice
  * @property {number} rowSqft
@@ -186,7 +186,10 @@ const COMP_ATTACH_FILE_STORE = "files";
  * @property {SelectedCompPriceRow[]} selectedRows
  * @property {number} count
  * @property {number} medianRawSalePrice
+ * @property {number} averageRawSalePrice
  * @property {number} medianSqftAdjustedSalePrice
+ * @property {number} averageSqftAdjustedSalePrice
+ * @property {number} medianSqftDeltaPct
  * @property {number} neighborhoodCount
  * @property {number} cityCount
  */
@@ -200,7 +203,7 @@ const COMP_ATTACH_FILE_STORE = "files";
  * @property {number} reductionAmount
  * @property {number} reductionPct
  * @property {number} protestStrengthScore
- * @property {"strong"|"moderate"|"weak"} protestStrengthBand
+ * @property {"high"|"moderate"|"meaningful"|"limited"} protestStrengthBand
  * @property {number} baseModelSuggestedValue
  * @property {CompsSummary|null} compsSummary
  * @property {string[]} reasoning
@@ -627,19 +630,21 @@ function renderCompActionsCell(source, rowKey, districtUrl, googleSearchUrl) {
           rowKey
         )}">View photos</button>`
       : "";
+  const safeDistrictUrl = escapeHtml(safeExternalUrl(districtUrl, bellcadSearchUrlCurrent()));
+  const safeGoogleSearchUrl = escapeHtml(safeExternalUrl(googleSearchUrl, "https://www.google.com/"));
   return `<details class="comp-actions-menu">
     <summary>Menu</summary>
     <div class="comp-actions-panel">
       <a
         class="comp-actions-link"
-        href="${districtUrl}"
+        href="${safeDistrictUrl}"
         target="_blank"
         rel="noopener noreferrer"
         title="Open the county district property record in a new tab"
       ><span class="comp-actions-link-main">District <span aria-hidden="true">↗</span></span><span class="comp-actions-link-sub">Open county property record</span></a>
       <a
         class="comp-actions-link"
-        href="${googleSearchUrl}"
+        href="${safeGoogleSearchUrl}"
         target="_blank"
         rel="noopener noreferrer"
         title="Search this sold home on Google in a new tab"
@@ -953,7 +958,10 @@ function syncSettingsControls() {
   const countyMeta = svc.countyRegistry[appSettings.countyId] || null;
   const districtLink = byId("lookupDistrictLink");
   if (districtLink) {
-    districtLink.href = countyMeta && countyMeta.districtUrl ? countyMeta.districtUrl : "#";
+    districtLink.href = safeExternalUrl(
+      countyMeta && countyMeta.districtUrl ? countyMeta.districtUrl : "#",
+      bellcadSearchUrlCurrent()
+    );
     districtLink.textContent =
       countyMeta && countyMeta.districtLabel ? countyMeta.districtLabel : "Tax Appraisal District";
   }
@@ -977,6 +985,8 @@ function resetWorkspaceForSourceChange() {
   renderMarketAnalysisCard(null);
   renderSoldHomes(null, [], 0);
   renderCitySoldHomes(null, [], [], 0);
+  renderReductionPotentialMeter(null);
+  renderValuationHighlights(null);
   byId("valuationResult").textContent = "";
   byId("packetResult").textContent = "";
   setStatus("packetStatus", "");
@@ -1341,6 +1351,10 @@ function renderKpiStrip() {
   const propertyUrlCurrent = bellcadPropertyViewUrlCurrent(pid);
   const propertyUrlPrior = bellcadPropertyViewUrlPrior(pid);
   const marketMapUrl = bellcadMarketAnalysisMapUrl(pid);
+  const safeDistrictUrl = escapeHtml(safeExternalUrl(districtUrl, bellcadSearchUrlCurrent()));
+  const safePropertyUrlCurrent = escapeHtml(safeExternalUrl(propertyUrlCurrent, bellcadSearchUrlCurrent()));
+  const safePropertyUrlPrior = escapeHtml(safeExternalUrl(propertyUrlPrior, bellcadSearchUrlPrior()));
+  const safeMarketMapUrl = escapeHtml(safeExternalUrl(marketMapUrl, bellcadSearchUrlCurrent()));
   el.innerHTML = `
     <div class="kpi-parcel-head" role="status" aria-live="polite">
       <span class="kpi-parcel-label">Active parcel</span>
@@ -1348,10 +1362,10 @@ function renderKpiStrip() {
       <div class="kpi-links-menu" aria-label="Property quick links">
         <button class="kpi-links-trigger" type="button" aria-haspopup="true" aria-expanded="false">Links <span aria-hidden="true">▾</span></button>
         <div class="kpi-links-dropdown hover-text-panel" role="menu">
-          <a class="kpi-links-item hover-text-panel-item" href="${districtUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(districtLabel)} <span class="kpi-parcel-link-icon" aria-hidden="true">↗</span></a>
-          <a class="kpi-links-item hover-text-panel-item" href="${propertyUrlCurrent}" target="_blank" rel="noopener noreferrer">Current <span class="kpi-parcel-link-icon" aria-hidden="true">↗</span></a>
-          <a class="kpi-links-item hover-text-panel-item" href="${propertyUrlPrior}" target="_blank" rel="noopener noreferrer">Prior Years <span class="kpi-parcel-link-icon" aria-hidden="true">↗</span></a>
-          <a class="kpi-links-item hover-text-panel-item" href="${marketMapUrl}" target="_blank" rel="noopener noreferrer">Market Map <span class="kpi-parcel-link-icon" aria-hidden="true">↗</span></a>
+          <a class="kpi-links-item hover-text-panel-item" href="${safeDistrictUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(districtLabel)} <span class="kpi-parcel-link-icon" aria-hidden="true">↗</span></a>
+          <a class="kpi-links-item hover-text-panel-item" href="${safePropertyUrlCurrent}" target="_blank" rel="noopener noreferrer">Current <span class="kpi-parcel-link-icon" aria-hidden="true">↗</span></a>
+          <a class="kpi-links-item hover-text-panel-item" href="${safePropertyUrlPrior}" target="_blank" rel="noopener noreferrer">Prior Years <span class="kpi-parcel-link-icon" aria-hidden="true">↗</span></a>
+          <a class="kpi-links-item hover-text-panel-item" href="${safeMarketMapUrl}" target="_blank" rel="noopener noreferrer">Market Map <span class="kpi-parcel-link-icon" aria-hidden="true">↗</span></a>
         </div>
       </div>
     </div>
@@ -1424,6 +1438,8 @@ function updateScoreButtonState() {
   scoreBtn.disabled = !hasParcel;
   if (!hasParcel) {
     scoreBtn.title = "Search Property ID first";
+    renderReductionPotentialMeter(null);
+    renderValuationHighlights(null);
     byId("valuationResult").textContent = "";
   } else {
     scoreBtn.title = "";
@@ -1511,7 +1527,7 @@ function renderPropertyLinks(parcelId) {
       container.innerHTML = "";
     });
     if (historyLink) {
-      historyLink.href = bellcadSearchUrlPrior();
+      historyLink.href = safeExternalUrl(bellcadSearchUrlPrior(), "#");
     }
     return;
   }
@@ -1520,10 +1536,14 @@ function renderPropertyLinks(parcelId) {
   const propertyUrlPrior = bellcadPropertyViewUrlPrior(parcelId);
   const marketMapUrl = bellcadMarketAnalysisMapUrl(parcelId);
   if (historyLink) {
-    historyLink.href = propertyUrlPrior;
+    historyLink.href = safeExternalUrl(propertyUrlPrior, bellcadSearchUrlPrior());
   }
   const link = (href, label) =>
-    `<a class="resource-link" href="${href}" target="_blank" rel="noopener noreferrer"><span class="resource-link-text">${label}</span><span class="resource-link-external" aria-hidden="true">↗</span></a>`;
+    `<a class="resource-link" href="${escapeHtml(
+      safeExternalUrl(href, bellcadSearchUrlCurrent())
+    )}" target="_blank" rel="noopener noreferrer"><span class="resource-link-text">${escapeHtml(
+      label
+    )}</span><span class="resource-link-external" aria-hidden="true">↗</span></a>`;
   const linksHtml = [
     link(propertyUrlCurrent, "Open property (current year)"),
     link(propertyUrlPrior, "Prior years & taxes (eSearch)"),
@@ -1551,6 +1571,20 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function safeExternalUrl(value, fallback = "#") {
+  try {
+    const raw = String(value || "").trim();
+    if (!raw) return fallback;
+    const parsed = new URL(raw, window.location.origin);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.href;
+    }
+    return fallback;
+  } catch (_err) {
+    return fallback;
+  }
 }
 
 function neighborhoodDisplayName(code, map) {
@@ -1955,8 +1989,8 @@ function renderMarketAnalysisCard(market) {
     items
       .map(
         ([label, value]) => `<div class="market-compact-row">
-          <span class="market-compact-label">${label}</span>
-          <span class="market-compact-value">${value}</span>
+          <span class="market-compact-label">${escapeHtml(String(label))}</span>
+          <span class="market-compact-value">${escapeHtml(String(value))}</span>
         </div>`
       )
       .join("");
@@ -2059,7 +2093,7 @@ function renderSoldHomes(neighborhood, rows, subjectSqft, opts) {
         <td class="nbhd-market-cell" title="${titleCode}">${escapeHtml(String(neighborhoodLabel))}</td>
         <td class="address-cell" title="${escapeHtml(address)}">${escapeHtml(address)}</td>
         <td>${formatSqftVsSubjectCell(row.squareFoot, subjectSqft)}</td>
-        <td>${row.saleDate || "n/a"}</td>
+        <td>${escapeHtml(String(row.saleDate || "n/a"))}</td>
         <td class="sold-price-cell">
           <input type="number" class="sold-price-input" min="0" step="1" placeholder="Price" inputmode="decimal" aria-label="Sale price for property ${escapeHtml(String(propId))}" value="${escapeHtml(priceVal)}"${priceHiddenAttr} />
         </td>
@@ -2074,7 +2108,7 @@ function renderSoldHomes(neighborhood, rows, subjectSqft, opts) {
     .join("");
   setStatus(
     "compSheetStatus",
-    "Select comps and enter sale prices where needed, then print — prices appear on the comp sheet."
+    "Select sales and enter prices where needed, then print — prices appear on the sales sheet."
   );
   card.hidden = false;
 }
@@ -2207,7 +2241,7 @@ function renderCitySoldHomes(city, neighborhoodCodes, rows, subjectSqft, opts) {
   let rankedRows = buildCitySalesRows(allRows, subjectSqft, variancePct, sortMode, 150);
   let usingFallback = false;
   if ((!rankedRows || rankedRows.length === 0) && allRows.length > 0) {
-    // If variance filter is too strict, still surface best city comps rather than an empty panel.
+    // If variance filter is too strict, still surface best surrounding-area sales rather than an empty panel.
     rankedRows = selectClosestSalesBySqft(allRows, subjectSqft, 150);
     usingFallback = rankedRows.length > 0;
   }
@@ -2215,8 +2249,8 @@ function renderCitySoldHomes(city, neighborhoodCodes, rows, subjectSqft, opts) {
     details.hidden = false;
     details.open = true;
     header.textContent = city
-      ? `No city-wide sold homes found for ${city} within +/- ${variancePct}% square-foot variance.`
-      : "No city-wide sold homes found because city was missing on the parcel record.";
+      ? `No surrounding-area sold homes found near ${city} within +/- ${variancePct}% square-foot variance.`
+      : "No surrounding-area sold homes found because situs city was missing on the parcel record.";
     teardownCompActionsMenusForTableRewrite();
     tbody.innerHTML = "";
     return;
@@ -2231,9 +2265,9 @@ function renderCitySoldHomes(city, neighborhoodCodes, rows, subjectSqft, opts) {
   const codeCount = Array.isArray(neighborhoodCodes) ? neighborhoodCodes.length : 0;
   const subjectSqftText = num(subjectSqft) > 0 ? num(subjectSqft).toLocaleString() : "n/a";
   if (usingNeighborhoodSource && usingFallback) {
-    header.textContent = `${rankedRows.length} closest shown from neighborhood sales (city feed unavailable) · subject ${subjectSqftText} sq ft`;
+    header.textContent = `${rankedRows.length} closest shown from neighborhood sales (surrounding-area feed unavailable) · subject ${subjectSqftText} sq ft`;
   } else if (usingNeighborhoodSource) {
-    header.textContent = `${rankedRows.length} shown from neighborhood sales (city feed unavailable) · subject ${subjectSqftText} sq ft · ±${variancePct}%`;
+    header.textContent = `${rankedRows.length} shown from neighborhood sales (surrounding-area feed unavailable) · subject ${subjectSqftText} sq ft · ±${variancePct}%`;
   } else if (usingFallback) {
     header.textContent = `${rankedRows.length} closest shown (outside ±${variancePct}% filter) · ${codeCount} hoods · subject ${subjectSqftText} sq ft`;
   } else {
@@ -2305,7 +2339,7 @@ async function buildPrintPhotoCellHtml(source, rowKey) {
   if (!currentParcel || !source || !rowKey) return "—";
   const parcelKey = getParcelAttachmentKey();
   const files = await loadCompAttachmentFiles(parcelKey, source, rowKey).catch((err) => {
-    warnStorageIssue("loading photos for comp sheet", err);
+    warnStorageIssue("loading photos for sales sheet", err);
     return [];
   });
   if (!files.length) return "—";
@@ -2378,7 +2412,7 @@ async function printCompSheet() {
         );
         cityRows.push({
           ...row,
-          compSource: "Same city",
+          compSource: "Surrounding areas",
           cityRowKey,
           compPhotoSource: "city",
           compPhotoRowKey: cityRowKey,
@@ -2389,7 +2423,7 @@ async function printCompSheet() {
   }
 
   if (!nhoodRows.length && !cityRows.length) {
-    throw new Error("Select at least one comp in the neighborhood table and/or the city table.");
+    throw new Error("Select at least one sale in the neighborhood table and/or the surrounding areas table.");
   }
 
   const createdAt = new Date().toLocaleString();
@@ -2434,6 +2468,8 @@ async function printCompSheet() {
     const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(
       `"${address}" TX sold home`
     )}`;
+    const safeBellcadUrl = escapeHtml(safeExternalUrl(bellcadUrl, bellcadSearchUrlCurrent()));
+    const safeGoogleSearchUrl = escapeHtml(safeExternalUrl(googleSearchUrl, "https://www.google.com/"));
     const salePriceDisp = num(row.salePrice) > 0 ? formatCurrency(row.salePrice) : "—";
     const photoSummary = photoHtmlByRowKey[`${row.compPhotoSource}|${row.compPhotoRowKey}`] || "—";
     return `<tr>
@@ -2445,8 +2481,8 @@ async function printCompSheet() {
         <td>${escapeHtml(String(saleDate))}</td>
         <td>${escapeHtml(salePriceDisp)}</td>
         <td>${photoSummary}</td>
-        <td><a href="${bellcadUrl}" target="_blank" rel="noopener noreferrer">District</a></td>
-        <td><a href="${googleSearchUrl}" target="_blank" rel="noopener noreferrer">Google</a></td>
+        <td><a href="${safeBellcadUrl}" target="_blank" rel="noopener noreferrer">District</a></td>
+        <td><a href="${safeGoogleSearchUrl}" target="_blank" rel="noopener noreferrer">Google</a></td>
       </tr>`;
   };
 
@@ -2486,10 +2522,10 @@ async function printCompSheet() {
     <p class="meta">Address: ${escapeHtml(String(subjectAddress))}</p>
     <p class="meta">Neighborhood (code): ${escapeHtml(String(neighborhood))}</p>
     <p class="meta">NBHD Market Area: ${escapeHtml(nbhdMarketArea || "n/a")}</p>
-    <p class="meta">City (situs): ${escapeHtml(String(cityLabel))}</p>
+    <p class="meta">Situs city: ${escapeHtml(String(cityLabel))}</p>
     <p class="meta">Subject sq ft: ${escapeHtml(num(subjectSqft) > 0 ? num(subjectSqft).toLocaleString() : "n/a")}</p>
     <p class="meta">Current Market/Assessed Value: ${escapeHtml(formatCurrency(currentParcel.assessedTotal))}</p>
-    <h2>Selected comps (${total}) — neighborhood: ${nhoodRows.length}, same city: ${cityRows.length}</h2>
+    <h2>Selected sales (${total}) — neighborhood: ${nhoodRows.length}, surrounding areas: ${cityRows.length}</h2>
     <table>
       <thead>
         <tr>
@@ -2525,7 +2561,7 @@ async function printCompSheet() {
   printWindow.document.close();
   setStatus(
     "compSheetStatus",
-    `Opened print view: ${nhoodRows.length} neighborhood + ${cityRows.length} city comp(s).`
+    `Opened print view: ${nhoodRows.length} neighborhood + ${cityRows.length} surrounding-area sale(s).`
   );
 }
 
@@ -2652,8 +2688,8 @@ function createTrendRow(year = "", assessedValue = "") {
   const row = document.createElement("div");
   row.className = "trend-row";
   row.innerHTML = `
-    <input data-trend-year type="number" placeholder="Year (e.g. 2025)" value="${year || ""}" />
-    <input data-trend-value type="number" placeholder="Assessed value" value="${assessedValue || ""}" />
+    <input data-trend-year type="number" placeholder="Year (e.g. 2025)" value="${escapeHtml(String(year || ""))}" />
+    <input data-trend-value type="number" placeholder="Assessed value" value="${escapeHtml(String(assessedValue || ""))}" />
     <button class="trend-remove" type="button" title="Remove this history row" aria-label="Remove history row">×</button>
   `;
   const removeBtn = row.querySelector(".trend-remove");
@@ -2834,6 +2870,13 @@ function median(values) {
   return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
 }
 
+function average(values) {
+  const nums = (Array.isArray(values) ? values : []).map((v) => Number(v)).filter((v) => Number.isFinite(v));
+  if (!nums.length) return 0;
+  const sum = nums.reduce((acc, n) => acc + n, 0);
+  return sum / nums.length;
+}
+
 /**
  * @param {string|number|null|undefined} subjectSqft
  * @returns {SelectedCompPriceRow[]}
@@ -2878,7 +2921,7 @@ function getSelectedCompPriceRows(subjectSqft) {
       const rowSqft = num(row.squareFoot);
       const sqftAdjFactor = subject > 0 && rowSqft > 0 ? subject / rowSqft : 1;
       selected.push({
-        source: "Same city",
+        source: "Surrounding areas",
         propertyId: row.propertyId || "n/a",
         salePrice: entered,
         rowSqft,
@@ -2897,15 +2940,66 @@ function getSelectedCompPriceRows(subjectSqft) {
 function summarizeSelectedCompSales(subjectSqft) {
   const selectedRows = getSelectedCompPriceRows(subjectSqft);
   if (!selectedRows.length) return null;
+  const subject = num(subjectSqft);
   const rawPrices = selectedRows.map((r) => r.salePrice);
   const adjustedPrices = selectedRows.map((r) => r.adjustedToSubject);
+  const sqftDeltaPcts = selectedRows.map((r) => {
+    const rowSqft = num(r.rowSqft);
+    if (subject <= 0 || rowSqft <= 0) return Number.POSITIVE_INFINITY;
+    return (Math.abs(rowSqft - subject) / subject) * 100;
+  });
+  const finiteDeltaPcts = sqftDeltaPcts.filter((n) => Number.isFinite(n));
   return {
     selectedRows,
     count: selectedRows.length,
     medianRawSalePrice: median(rawPrices),
+    averageRawSalePrice: average(rawPrices),
     medianSqftAdjustedSalePrice: median(adjustedPrices),
+    averageSqftAdjustedSalePrice: average(adjustedPrices),
+    medianSqftDeltaPct: finiteDeltaPcts.length ? median(finiteDeltaPcts) : Number.POSITIVE_INFINITY,
     neighborhoodCount: selectedRows.filter((r) => r.source === "Neighborhood").length,
     cityCount: selectedRows.filter((r) => r.source !== "Neighborhood").length,
+  };
+}
+
+/**
+ * @param {number} compCount
+ * @returns {number}
+ */
+function getCompBlendWeight(compCount) {
+  const n = Math.max(0, Math.floor(Number(compCount) || 0));
+  if (n >= 5) return 0.88;
+  if (n === 4) return 0.84;
+  if (n === 3) return 0.8;
+  if (n === 2) return 0.72;
+  if (n === 1) return 0.6;
+  return 0;
+}
+
+function getCompDrivenEstimateStrategy(compsSummary) {
+  if (!compsSummary || compsSummary.count <= 0) {
+    return { anchor: 0, weight: 0, mode: "none" };
+  }
+  const strongSqftMatch = Number.isFinite(compsSummary.medianSqftDeltaPct) && compsSummary.medianSqftDeltaPct <= 2;
+  const goodSqftMatch = Number.isFinite(compsSummary.medianSqftDeltaPct) && compsSummary.medianSqftDeltaPct <= 6;
+  if (compsSummary.count >= 3 && strongSqftMatch) {
+    return {
+      anchor: compsSummary.averageSqftAdjustedSalePrice,
+      weight: 0.98,
+      mode: "very_strong_match",
+    };
+  }
+  if (compsSummary.count >= 3 && goodSqftMatch) {
+    return {
+      anchor: compsSummary.averageSqftAdjustedSalePrice,
+      weight: 0.93,
+      mode: "strong_match",
+    };
+  }
+  return {
+    anchor: compsSummary.medianSqftAdjustedSalePrice,
+    weight: getCompBlendWeight(compsSummary.count),
+    mode: "standard_blend",
   };
 }
 
@@ -2938,7 +3032,7 @@ function buildCompAttachmentSummary() {
       const count = Number(cityCounts[rowKey] || 0);
       if (!Number.isFinite(count) || count <= 0) return;
       rows.push({
-        source: "Same city",
+        source: "Surrounding areas",
         propertyId: row.propertyId || "n/a",
         address: row.propertyAddress || "Address not available",
         count,
@@ -2953,17 +3047,115 @@ function buildCompAttachmentSummary() {
  * @param {ValuationResult} data
  */
 function renderValuationResult(data) {
-  const lines = [
-    `Protest Potential: ${data.protestStrengthBand.toUpperCase()} (${data.protestStrengthScore}/100)`,
-    "",
-    `Current Assessed Value: ${formatCurrency(data.assessedTotal)}`,
-    `Estimated Supportable Value: ${formatCurrency(data.suggestedValue)}`,
-    `Potential Reduction: ${formatCurrency(data.reductionAmount)} (${data.reductionPct.toFixed(2)}%)`,
-    "",
-    "How this was estimated:",
-    ...data.reasoning.map((line) => `- ${line}`),
+  renderReductionPotentialMeter(data);
+  renderValuationHighlights(data);
+  const container = byId("valuationResult");
+  if (!container) return;
+  const all = Array.isArray(data.reasoning) ? data.reasoning.filter(Boolean) : [];
+  const itemsHtml = all.map((line) => `<li>${escapeHtml(String(line))}</li>`).join("");
+  container.innerHTML = `
+    <section class="valuation-result-section">
+      <h3>How this was estimated</h3>
+      <ul>${itemsHtml}</ul>
+    </section>
+  `;
+}
+
+/**
+ * @param {ValuationResult|null} data
+ */
+function renderValuationHighlights(data) {
+  const container = byId("valuationHighlights");
+  if (!container) return;
+  if (!data) {
+    container.hidden = true;
+    container.innerHTML = "";
+    return;
+  }
+  const assessed = num(data.assessedTotal);
+  const supportable = num(data.suggestedValue);
+  const reductionAmount = Math.max(0, assessed - supportable);
+  const reductionPct = assessed > 0 ? (reductionAmount / assessed) * 100 : 0;
+  const deltaTone = supportable < assessed ? "gain" : supportable > assessed ? "up" : "flat";
+  const cards = [
+    {
+      label: "Current assessed",
+      value: formatCurrency(assessed),
+      title: "Current assessed value used as the comparison baseline.",
+      valueTone: "",
+    },
+    {
+      label: "Supportable estimate",
+      value: formatCurrency(supportable),
+      title: "Estimated supportable value from the model and selected sales.",
+      valueTone: deltaTone,
+    },
+    {
+      label: "Reduction",
+      value: `${formatCurrency(reductionAmount)} (${reductionPct.toFixed(2)}%)`,
+      title:
+        deltaTone === "gain"
+          ? "Lower than current assessed value; potential reduction shown in dollars and percent."
+          : deltaTone === "up"
+          ? "Higher than current assessed value; no reduction currently indicated."
+          : "Matches current assessed value; no reduction currently indicated.",
+      valueTone: deltaTone,
+    },
   ];
-  byId("valuationResult").textContent = lines.join("\n");
+  container.innerHTML = cards
+    .map(
+      (card) => `<article class="valuation-highlight-card" title="${escapeHtml(card.title)}">
+        <span class="valuation-highlight-label">${escapeHtml(card.label)}</span>
+        <strong class="valuation-highlight-value${card.valueTone ? ` is-${escapeHtml(card.valueTone)}` : ""}">${escapeHtml(
+          card.value
+        )}</strong>
+      </article>`
+    )
+    .join("");
+  container.hidden = false;
+}
+
+/**
+ * @param {ValuationResult|null} data
+ */
+function renderReductionPotentialMeter(data) {
+  const card = byId("reductionPotentialCard");
+  const labelEl = byId("reductionPotentialLabel");
+  const pctEl = byId("reductionPotentialPct");
+  const fill = byId("reductionPotentialFill");
+  if (!card || !labelEl || !pctEl || !fill) return;
+  if (!data) {
+    card.hidden = true;
+    card.classList.remove("level-limited", "level-meaningful", "level-moderate", "level-high");
+    fill.style.width = "0%";
+    fill.style.background = "linear-gradient(90deg, #334155, #475569)";
+    return;
+  }
+
+  const pct = Number(data.reductionPct || 0);
+  const score = Math.max(0, Math.min(100, Number(data.protestStrengthScore || 0)));
+  const level = String(data.protestStrengthBand || "limited");
+  let label = "Estimated reduction potential: limited";
+  let color = "linear-gradient(90deg, #f59e0b, #eab308)";
+  if (level === "high") {
+    label = "Estimated reduction potential: high";
+    color = "linear-gradient(90deg, #16a34a, #15803d)";
+  } else if (level === "moderate") {
+    label = "Estimated reduction potential: moderate";
+    color = "linear-gradient(90deg, #22c55e, #16a34a)";
+  } else if (level === "meaningful") {
+    label = "Estimated reduction potential: meaningful";
+    color = "linear-gradient(90deg, #4ade80, #22c55e)";
+  } else if (level === "limited") {
+    color = "linear-gradient(90deg, #f59e0b, #d97706)";
+  }
+  card.classList.remove("level-limited", "level-meaningful", "level-moderate", "level-high");
+  card.classList.add(`level-${level}`);
+  labelEl.textContent = `${label} (${score}/100)`;
+  pctEl.textContent = `${pct.toFixed(2)}% · ${formatCurrency(data.reductionAmount)} est. reduction`;
+  fill.style.width = `${score}%`;
+  fill.style.background = color;
+  card.hidden = false;
 }
 
 /**
@@ -2999,7 +3191,7 @@ function renderPacketResult(data) {
     `- Reasons: ${(worksheet.portalReasons && worksheet.portalReasons.join("; ")) || "n/a"}`,
     `- Facts length: ${num(worksheet.factsCharCount)} / ${MAX_PROTEST_FACTS_CHARS} characters`,
     "",
-    "Comp photo evidence",
+    "Comparable-sales photo evidence",
     ...(compAttachments.length
       ? compAttachments.map(
           (row) =>
@@ -3007,7 +3199,7 @@ function renderPacketResult(data) {
               row.files && row.files.length ? ` · ${row.files.join(", ")}` : ""
             }`
         )
-      : ["- No comp photos attached."]),
+      : ["- No comparable-sales photos attached."]),
     "",
     "Checklist",
     ...checklist.map((item) => `- [ ] ${item}`),
@@ -3045,17 +3237,24 @@ async function scoreParcel() {
   const compsSummary = summarizeSelectedCompSales(subjectSqft);
   const baseModelSuggestedValue = Math.round(landValue + adjustedImprovement);
   let suggestedValue = baseModelSuggestedValue;
+  let compWeightUsed = 0;
+  let compOnlyAnchorValue = 0;
+  let compStrategyMode = "none";
   if (compsSummary && compsSummary.medianSqftAdjustedSalePrice > 0) {
-    // Comps should drive the model when user provides price evidence.
-    const compWeight = compsSummary.count >= 3 ? 0.7 : 0.55;
+    const strategy = getCompDrivenEstimateStrategy(compsSummary);
+    compStrategyMode = strategy.mode;
+    compWeightUsed = strategy.weight;
+    compOnlyAnchorValue = Math.round(strategy.anchor);
     suggestedValue = Math.round(
-      baseModelSuggestedValue * (1 - compWeight) + compsSummary.medianSqftAdjustedSalePrice * compWeight
+      baseModelSuggestedValue * (1 - compWeightUsed) + strategy.anchor * compWeightUsed
     );
   }
   const reductionAmount = Math.max(0, assessedTotal - suggestedValue);
   const reductionPct = assessedTotal > 0 ? (reductionAmount / assessedTotal) * 100 : 0;
-  const score = Math.max(0, Math.min(100, Math.round(reductionPct * 2)));
-  const band = score >= 70 ? "strong" : score >= 40 ? "moderate" : "weak";
+  const pctScore = Math.max(0, Math.min(100, (reductionPct / 20) * 100));
+  const dollarScore = Math.max(0, Math.min(100, (reductionAmount / 100000) * 100));
+  const score = Math.round(pctScore * 0.65 + dollarScore * 0.35);
+  const band = score >= 70 ? "high" : score >= 45 ? "moderate" : score >= 25 ? "meaningful" : "limited";
 
   const data = {
     county: "Tax Appraisal District",
@@ -3066,12 +3265,15 @@ async function scoreParcel() {
     protestStrengthScore: score,
     protestStrengthBand: band,
     baseModelSuggestedValue,
+    compWeightUsed,
+    compOnlyAnchorValue,
     compsSummary,
     reasoning: [
       `Assessment starts at $${assessedTotal.toLocaleString()}.`,
       `Applied ${boundedPenalty}% condition adjustment to improvements.`,
       `Estimated supportable value: $${suggestedValue.toLocaleString()}.`,
       `Potential reduction: $${reductionAmount.toLocaleString()} (${reductionPct.toFixed(2)}%).`,
+      "Reduction potential meter blends percent impact (65%) and dollar impact (35%); level thresholds are limited < 25, meaningful 25-44, moderate 45-69, high >= 70.",
     ],
     confidence: {
       assessedTotal: assessedTotal > 0 ? "high" : "low",
@@ -3090,25 +3292,89 @@ async function scoreParcel() {
   }
   if (currentNoticeSummary && currentNoticeSummary.proposedMarket > 0) {
     data.reasoning.push(
-      `Notice proposed market change: ${currentNoticeSummary.marketIncreasePct}% from last year.`
+      `Notice proposed market change (${currentNoticeSummary.marketIncreasePct}%): based on your Notice values: Proposed Market ${formatCurrency(
+        currentNoticeSummary.proposedMarket
+      )} vs Last Year Market ${formatCurrency(currentNoticeSummary.lastYearMarket)}.`
     );
   }
   if (compsSummary) {
+    const salesLabel = compsSummary.count === 1 ? "sale" : "sales";
+    const methodLabel =
+      compStrategyMode === "very_strong_match"
+        ? "near match mode"
+        : compStrategyMode === "strong_match"
+        ? "strong match mode"
+        : "blended mode";
+    const supportableLine =
+      compWeightUsed > 0
+        ? `Estimated supportable value: ${formatCurrency(
+            suggestedValue
+          )} from ${compsSummary.count} selected comparable home ${salesLabel} (${compsSummary.neighborhoodCount} from neighborhood, ${
+            compsSummary.cityCount
+          } from surrounding areas) using ${Math.round(compWeightUsed * 100)}% market-sales weight and ${Math.round(
+            (1 - compWeightUsed) * 100
+          )}% county baseline (${methodLabel}).`
+        : `Estimated supportable value: ${formatCurrency(
+            suggestedValue
+          )} from county baseline only (no selected comparable home sales with prices entered).`;
+    data.reasoning = data.reasoning.filter((line) => !line.startsWith("Estimated supportable value:"));
+    data.reasoning.splice(2, 0, supportableLine);
     data.reasoning.push(
-      `Used ${compsSummary.count} selected comp sale price(s) (${compsSummary.neighborhoodCount} neighborhood, ${compsSummary.cityCount} city).`
+      `Selected home median (raw entered prices): ${formatCurrency(compsSummary.medianRawSalePrice)}.`
     );
     data.reasoning.push(
-      `Comp median (raw): ${formatCurrency(compsSummary.medianRawSalePrice)}; sq ft-adjusted to subject: ${formatCurrency(
+      `Selected home average (raw entered prices): ${formatCurrency(compsSummary.averageRawSalePrice)}.`
+    );
+    data.reasoning.push(
+      `Sq ft-adjusted anchor for your home size (${num(subjectSqft).toLocaleString()} sq ft): ${formatCurrency(
         compsSummary.medianSqftAdjustedSalePrice
       )}.`
     );
     data.reasoning.push(
-      `Blended comp-driven estimate with model base ${formatCurrency(baseModelSuggestedValue)} to reduce outlier risk.`
+      `Sq ft-adjusted average for your home size: ${formatCurrency(compsSummary.averageSqftAdjustedSalePrice)}.`
+    );
+    if (Number.isFinite(compsSummary.medianSqftDeltaPct)) {
+      data.reasoning.push(
+        `Median square-foot gap vs your home across selected sales: ${compsSummary.medianSqftDeltaPct.toFixed(2)}%.`
+      );
+    }
+    if (compOnlyAnchorValue > 0) {
+      data.reasoning.push(
+        `Sales-only anchor (before county baseline blend): ${formatCurrency(compOnlyAnchorValue)}.`
+      );
+    }
+    data.reasoning.push(
+      `Final estimate blends county baseline ${formatCurrency(baseModelSuggestedValue)} with selected sales at ${Math.round(
+        compWeightUsed * 100
+      )}% sales weight (${Math.round((1 - compWeightUsed) * 100)}% baseline).`
+    );
+    const baselineWeightPct = Math.round((1 - compWeightUsed) * 100);
+    const salesWeightPct = Math.round(compWeightUsed * 100);
+    const blendedFromRoundedAnchors = Math.round(
+      baseModelSuggestedValue * (1 - compWeightUsed) + compOnlyAnchorValue * compWeightUsed
+    );
+    data.reasoning.push(
+      `Math: (${formatCurrency(baseModelSuggestedValue)} × ${baselineWeightPct}%) + (${formatCurrency(
+        compOnlyAnchorValue
+      )} × ${salesWeightPct}%) = ${formatCurrency(blendedFromRoundedAnchors)}.`
+    );
+    if (compStrategyMode === "very_strong_match") {
+      data.reasoning.push(
+        "Strong sales match detected (3+ sales with very close square footage), so the estimate is intentionally almost fully sales-driven."
+      );
+    } else if (compStrategyMode === "strong_match") {
+      data.reasoning.push(
+        "Good sales match detected, so the estimate is heavily weighted toward selected sale values."
+      );
+    }
+    data.reasoning.push(
+      "Tip: if this feels too high/low, pick sales with closer square footage and sale dates; that usually improves fit."
     );
   } else {
     data.reasoning.push(
-      "No selected comps with entered sale prices found; estimate used land + improvement model only."
+      "No selected comparable home sales with entered prices were found; estimate used county land + improvement values only."
     );
+    data.reasoning.push(`Math: ${formatCurrency(baseModelSuggestedValue)} (county baseline only).`);
   }
 
   currentParcel = parcelForScoring;
@@ -3237,7 +3503,7 @@ async function generatePacket() {
         ...(compAttachments.length
           ? [
               "",
-              "Comparable property photo evidence:",
+              "Comparable-sales photo evidence:",
               ...compAttachments.map(
                 (row) =>
                   `- ${row.source}: ${row.propertyId} (${row.count} photo(s))${
@@ -3347,7 +3613,7 @@ function packetToMarkdown(packet) {
               row.files && row.files.length ? ` (${row.files.join(", ")})` : ""
             }`
         )
-      : ["- No comp photos attached."]),
+      : ["- No comparable-sales photos attached."]),
     ``,
     `## Checklist`,
     ...checklist.map((item) => `- [ ] ${item}`),

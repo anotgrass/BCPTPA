@@ -7,6 +7,10 @@
       name="description"
       content="Bell County, Texas property tax protest planning assistant — neighborhood analysis, notice tools, and packet drafts. Informational only, not legal advice."
     />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://utility.arcgis.com https://services7.arcgis.com;"
+    />
     <title>Bell County - Property Tax Protest Assistant</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -173,9 +177,9 @@
       <section class="card panel workflow-gated" id="step-comps">
         <h2>Comparable sold homes</h2>
         <p class="muted comps-intro">
-          Tax appraisal district sales extracts list <strong>addresses and dates</strong>, not sale prices. Select comps you care about,
+          Tax appraisal district sales extracts list <strong>addresses and dates</strong>, not sale prices. Select sales you care about,
           then enter a price from MLS, deed records, Zillow/Realtor, or your own notes. Prices flow into the printable
-          comp sheet.
+          sales sheet.
         </p>
         <div id="soldHomesCard" class="market-card comps-sold-block" hidden>
           <h3>Neighborhood Sold Homes</h3>
@@ -197,7 +201,7 @@
             </table>
           </div>
           <details id="citySalesDetails" class="city-sales" hidden open>
-            <summary>Other Sold Homes In Same City</summary>
+            <summary>Other Sold Homes In Surrounding Areas</summary>
             <label class="city-filter-field">
               Max Sq Ft Variance (%)
               <input id="citySqftVariancePct" type="number" min="1" max="100" value="15" />
@@ -231,7 +235,7 @@
             </div>
           </details>
           <div class="comp-print-bar">
-            <button id="printCompSheetBtn" type="button">Print Comp Sheet (Neighborhood + City)</button>
+            <button id="printCompSheetBtn" type="button">Print Comp Sheet (Neighborhood + Surrounding Areas)</button>
             <p id="compSheetStatus" class="muted"></p>
           </div>
         </div>
@@ -240,8 +244,9 @@
       <section class="card panel workflow-gated" id="step-notice">
         <h2>Notice values (optional)</h2>
         <p class="muted notice-intro">
-          Review last year value, current market value, exemption status, and protest instructions from your notice. It is not a
-          bill; it is your chance to review and respond.
+          Review last year value, current market value, and protest instructions from your notice. These values are
+          used in the Protest Potential write-up context (market/assessed change lines), but do not change the core
+          supportable-value math. It is not a bill; it is your chance to review and respond.
         </p>
         <div class="notice-table-wrap">
           <table class="notice-table">
@@ -308,39 +313,50 @@
         <p class="muted helper-text">
           This runs a <strong>rough “what might be supportable” value</strong> from county <strong>land</strong> and
           <strong>building (improvement)</strong> amounts, then compares it to the <strong>assessed value you’re
-          protesting</strong> to suggest a possible reduction range. Use it <strong>after</strong> you open a property from
-          <strong>Find Property</strong>. Filling in the Notice section above is optional; it only adds context to the
-          write-up, not to this core math.
+          protesting</strong> to suggest a possible reduction range. Filling in the Notice section is optional; it does
+          <strong>not</strong> change the supportable-value math, but those values are used for notice-change context lines
+          in the output and packet write-up.
         </p>
-        <label>
-          Condition discount on the building (%) — 0 to 40
-          <input id="conditionPenalty" type="number" min="0" max="40" value="0" />
-        </label>
-        <p class="muted helper-text">
-          Only affects the <strong>improvement (structure) portion</strong> of the model, not land. Increase this if the
-          home has real problems you could argue at a hearing—neglected systems, damage, or heavy wear. <strong>0%</strong> =
-          no extra discount. County data often assumes “average” condition; this nudges the model when yours is below
-          that.
-        </p>
-        <label>
-          Assessed value to use in this estimate (optional)
-          <input id="assessedOverride" type="number" min="0" placeholder="e.g. 285000" />
-        </label>
-        <p class="muted helper-text">
-          Leave empty to use the assessed / market total from the county lookup. Fill this in if that number is
-          <strong>missing</strong> in the app or you want the estimate to use the <strong>same total as on your Notice of
-          Appraised Value</strong> (so “possible reduction” matches the value you’re actually protesting).
-        </p>
+        <details class="collapsible-section estimate-controls-section">
+          <summary class="collapsible-summary">
+            <span class="collapsible-title">Condition and assessed inputs (optional)</span>
+            <span class="collapsible-hint muted">Tune model assumptions only if your structure condition or notice assessed total needs adjustment.</span>
+          </summary>
+          <div class="estimate-controls-body">
+            <label>
+              Condition discount on the building (%) — 0 to 40
+              <input id="conditionPenalty" type="number" min="0" max="40" value="0" />
+            </label>
+            <p class="muted helper-text">
+              Only affects the <strong>improvement (structure) portion</strong> of the model, not land. Increase this if the
+              home has real problems you could argue at a hearing—neglected systems, damage, or heavy wear. <strong>0%</strong> =
+              no extra discount. County data often assumes “average” condition; this nudges the model when yours is below
+              that.
+            </p>
+            <label>
+              Assessed value to use in this estimate (optional)
+              <input id="assessedOverride" type="number" min="0" placeholder="e.g. 285000" />
+            </label>
+            <p class="muted helper-text">
+              Leave empty to use the assessed / market total from the county lookup. Fill this in if that number is
+              <strong>missing</strong> in the app or you want the estimate to use the <strong>same total as on your Notice of
+              Appraised Value</strong> (so “possible reduction” matches the value you’re actually protesting).
+            </p>
+          </div>
+        </details>
 
         <details class="collapsible-section">
           <summary class="collapsible-summary">
             <span class="collapsible-title">Assessed value history (optional)</span>
             <span class="collapsible-hint muted"
               >Paste from tax appraisal district roll value history to add a trend line to reasoning and your packet. You can skip this
-              if comps and condition are enough for your case.</span
+              if selected sales and condition are enough for your case.</span
             >
           </summary>
         <div class="history-help">
+          <p class="muted helper-text history-impact-note">
+            This history is <strong>context only</strong> for reasoning/packet notes — it does <strong>not</strong> change the supportable value math.
+          </p>
           <p class="muted helper-text">
             Source: Tax Appraisal District property page → <strong>Property Roll Value History</strong> table (use
             <strong>Year</strong> + <strong>Assessed</strong> columns).
@@ -352,7 +368,7 @@
               href="https://esearch.bellcad.org/Property/Search"
               target="_blank"
               rel="noopener noreferrer"
-              >Open eSearch (prior years &amp; taxes — for Roll Value History)</a
+              >Open eSearch (prior years &amp; taxes — for Roll Value History) <span aria-hidden="true">↗</span></a
             >
           </p>
           <figure class="example-figure">
@@ -372,10 +388,12 @@
             placeholder="Example: 2025 ... $494,611 / 2024 ... $500,000 / 2023 ... $402,661"
           ></textarea>
         </label>
-        <p class="muted helper-text">Sample paste format (one row per year):</p>
-        <pre>2025  411,611  83,000  0  494,611  0  494,611
+        <details class="history-sample-details">
+          <summary class="history-sample-summary">Show sample paste format</summary>
+          <pre>2025  411,611  83,000  0  494,611  0  494,611
 2024  417,000  83,000  0  500,000  0  500,000
 2023  362,661  40,000  0  402,661  0  402,661</pre>
+        </details>
         <button id="parseTrendBtn">Auto-fill History From Paste</button>
         <div id="trendRows"></div>
         <button id="addTrendRowBtn">Add History Row</button>
@@ -383,11 +401,21 @@
 
         <p id="estimateReadiness" class="readiness-note"></p>
         <button id="scoreBtn">Estimate Protest Potential</button>
-        <p class="muted worksheet-note">
-          <strong>Protest strength</strong> (weak / moderate / strong) is an informal in-tool estimate for your own
-          planning — it is not evidence to paste into the tax appraisal district portal.
+        <p class="muted worksheet-note worksheet-note-highlight">
+          <strong>Reduction potential meter</strong> is an informal in-tool planning aid — it is not evidence to paste
+          into the tax appraisal district portal.
         </p>
-        <pre id="valuationResult"></pre>
+        <div id="reductionPotentialCard" class="reduction-potential" hidden>
+          <div class="reduction-potential-head">
+            <strong id="reductionPotentialLabel">Estimated reduction potential</strong>
+            <span id="reductionPotentialPct" class="reduction-potential-pct">0.00%</span>
+          </div>
+          <div class="reduction-potential-track" aria-hidden="true">
+            <div id="reductionPotentialFill" class="reduction-potential-fill"></div>
+          </div>
+        </div>
+        <div id="valuationHighlights" class="valuation-highlights" hidden></div>
+        <div id="valuationResult" class="valuation-result"></div>
       </section>
 
       <section class="card card-worksheet panel panel-accent workflow-gated" id="step-portal">
@@ -467,7 +495,7 @@
               <li>Collect condition evidence (photos + contractor repair estimates) for protest support, not listing prep.</li>
               <li>Watch for the land value trap: if total value is flat but land value jumps, protest it immediately.</li>
               <li>Protest every year, either DIY or with a protest firm.</li>
-              <li>Request BCAD comp packet and identify mismatches.</li>
+              <li>Request BCAD comparable-sales packet and identify mismatches.</li>
               <li>Prepare concise talking points for the informal meeting.</li>
             </ol>
           </section>
@@ -624,7 +652,7 @@
         <header class="settings-modal-header">
           <div class="settings-modal-title-block">
             <h2 id="compPhotosModalTitle">Attached Photos</h2>
-            <p id="compPhotosModalSubtitle" class="settings-modal-subtitle">Review and remove comp photos.</p>
+            <p id="compPhotosModalSubtitle" class="settings-modal-subtitle">Review and remove comparable-sales photos.</p>
           </div>
           <button id="closeCompPhotosModalBtn" class="settings-close-btn" type="button" aria-label="Close photo viewer">
             Close
