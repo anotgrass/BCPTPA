@@ -794,6 +794,28 @@ function setStatus(id, message) {
   byId(id).textContent = message || "";
 }
 
+function setApnSearchLoading(isLoading) {
+  const landingBtn = byId("searchApnLandingBtn");
+  const dashBtn = byId("searchApnBtn");
+  const spinLand = byId("apnSearchSpinnerLanding");
+  const spinDash = byId("apnSearchSpinnerDashboard");
+  [landingBtn, dashBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.disabled = !!isLoading;
+    btn.setAttribute("aria-busy", isLoading ? "true" : "false");
+  });
+  [spinLand, spinDash].forEach((el) => {
+    if (!el) return;
+    if (isLoading) {
+      el.removeAttribute("hidden");
+      el.setAttribute("aria-hidden", "false");
+    } else {
+      el.setAttribute("hidden", "");
+      el.setAttribute("aria-hidden", "true");
+    }
+  });
+}
+
 function initAppSettingsAndAdapter() {
   const svc = window.ProtestSettings;
   const adapters = window.ProtestCountyAdapters;
@@ -2305,45 +2327,50 @@ async function searchParcelByApn() {
     throw new Error("No county adapter is available.");
   }
 
-  currentParcel = await activeAdapter.searchParcelBundleByApn(apn);
-  currentParcel.compSalePricesNhood = {};
-  currentParcel.compSalePricesCity = {};
-  const savedPhotoState = await loadCompAttachmentState(currentParcel.parcelId || apn).catch((err) => {
-    warnStorageIssue("loading saved photos", err);
-    return {
-      nhoodCounts: {},
-      cityCounts: {},
-      nhoodNames: {},
-      cityNames: {},
-    };
-  });
-  currentParcel.compPhotoCountsNhood = savedPhotoState.nhoodCounts || {};
-  currentParcel.compPhotoCountsCity = savedPhotoState.cityCounts || {};
-  currentParcel.compPhotoNamesNhood = savedPhotoState.nhoodNames || {};
-  currentParcel.compPhotoNamesCity = savedPhotoState.cityNames || {};
-  currentValuation = null;
-  currentPacket = null;
-  resetWorksheetState();
-  autofillNoticeFromParcel(currentParcel);
-  renderPropertyLinks(currentParcel.parcelId || apn);
-  renderMarketAnalysisCard(currentParcel.marketAnalysis);
-  const subjectSqftForComps =
-    (currentParcel.marketAnalysis && currentParcel.marketAnalysis.squareFoot) || currentParcel.sqft;
-  renderSoldHomes(
-    currentParcel.marketAnalysis && currentParcel.marketAnalysis.neighborhood,
-    currentParcel.neighborhoodSales,
-    subjectSqftForComps
-  );
-  renderCitySoldHomes(
-    currentParcel.city,
-    currentParcel.cityNeighborhoodCodes,
-    currentParcel.citySales,
-    subjectSqftForComps
-  );
-  renderQualityBadges(currentParcel);
-  renderKpiStrip();
-  updateScoreButtonState();
-  setWorkflowUnlocked(true, true);
+  setApnSearchLoading(true);
+  try {
+    currentParcel = await activeAdapter.searchParcelBundleByApn(apn);
+    currentParcel.compSalePricesNhood = {};
+    currentParcel.compSalePricesCity = {};
+    const savedPhotoState = await loadCompAttachmentState(currentParcel.parcelId || apn).catch((err) => {
+      warnStorageIssue("loading saved photos", err);
+      return {
+        nhoodCounts: {},
+        cityCounts: {},
+        nhoodNames: {},
+        cityNames: {},
+      };
+    });
+    currentParcel.compPhotoCountsNhood = savedPhotoState.nhoodCounts || {};
+    currentParcel.compPhotoCountsCity = savedPhotoState.cityCounts || {};
+    currentParcel.compPhotoNamesNhood = savedPhotoState.nhoodNames || {};
+    currentParcel.compPhotoNamesCity = savedPhotoState.cityNames || {};
+    currentValuation = null;
+    currentPacket = null;
+    resetWorksheetState();
+    autofillNoticeFromParcel(currentParcel);
+    renderPropertyLinks(currentParcel.parcelId || apn);
+    renderMarketAnalysisCard(currentParcel.marketAnalysis);
+    const subjectSqftForComps =
+      (currentParcel.marketAnalysis && currentParcel.marketAnalysis.squareFoot) || currentParcel.sqft;
+    renderSoldHomes(
+      currentParcel.marketAnalysis && currentParcel.marketAnalysis.neighborhood,
+      currentParcel.neighborhoodSales,
+      subjectSqftForComps
+    );
+    renderCitySoldHomes(
+      currentParcel.city,
+      currentParcel.cityNeighborhoodCodes,
+      currentParcel.citySales,
+      subjectSqftForComps
+    );
+    renderQualityBadges(currentParcel);
+    renderKpiStrip();
+    updateScoreButtonState();
+    setWorkflowUnlocked(true, true);
+  } finally {
+    setApnSearchLoading(false);
+  }
 }
 
 /**

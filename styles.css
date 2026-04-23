@@ -1408,6 +1408,35 @@ body.ui-hide-help #marketAnalysisHeader {
   max-width: 480px;
 }
 
+/* Property search loading indicator (Open Dashboard / Search Property ID) */
+.apn-search-spinner {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  align-self: center;
+  min-height: 2.25rem;
+}
+
+.apn-search-spinner[hidden] {
+  display: none;
+}
+
+.apn-search-spinner-wheel {
+  display: block;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid rgba(148, 163, 184, 0.35);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: apn-spinner-rotate 0.65s linear infinite;
+}
+
+@keyframes apn-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 900px) {
   .lookup-settings-shell {
     grid-template-columns: 1fr;

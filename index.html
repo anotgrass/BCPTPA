@@ -96,7 +96,18 @@
             </div>
             <div class="row lookup-search-row">
               <input id="apnInputLanding" placeholder="Property ID (e.g. 683219)" />
-              <button id="searchApnLandingBtn">Open Dashboard</button>
+              <button id="searchApnLandingBtn" type="button">Open Dashboard</button>
+              <span
+                id="apnSearchSpinnerLanding"
+                class="apn-search-spinner"
+                hidden
+                role="status"
+                aria-live="polite"
+                aria-hidden="true"
+              >
+                <span class="apn-search-spinner-wheel" aria-hidden="true"></span>
+                <span class="sr-only">Loading property data</span>
+              </span>
             </div>
           </section>
         </div>
@@ -125,7 +136,18 @@
         <h2>Find Property</h2>
         <div class="row">
           <input id="apnInput" placeholder="Property ID (e.g. 683219)" />
-          <button id="searchApnBtn">Search Property ID</button>
+          <button id="searchApnBtn" type="button">Search Property ID</button>
+          <span
+            id="apnSearchSpinnerDashboard"
+            class="apn-search-spinner"
+            hidden
+            role="status"
+            aria-live="polite"
+            aria-hidden="true"
+          >
+            <span class="apn-search-spinner-wheel" aria-hidden="true"></span>
+            <span class="sr-only">Loading property data</span>
+          </span>
         </div>
         <div id="qualityBadges" class="parcel-data-quality-host" hidden></div>
         <div id="propertyLinks" class="resource-links" aria-label="Tax appraisal district quick links"></div>
